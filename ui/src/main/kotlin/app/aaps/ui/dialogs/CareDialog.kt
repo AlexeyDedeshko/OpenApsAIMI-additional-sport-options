@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -38,6 +39,8 @@ import java.util.LinkedList
 import javax.inject.Inject
 
 class CareDialog : DialogFragmentWithDate() {
+
+    private val TAG = "CareDialog"
 
     @Inject lateinit var injector: HasAndroidInjector
     @Inject lateinit var ctx: Context
@@ -125,10 +128,26 @@ class CareDialog : DialogFragmentWithDate() {
                 binding.durationLayout.visibility = View.GONE
             }
 
-            UiInteraction.EventType.NOTE,
-            UiInteraction.EventType.EXERCISE       -> {
+            UiInteraction.EventType.NOTE      -> {
                 binding.bgLayout.visibility = View.GONE
                 binding.bgsource.visibility = View.GONE
+            }
+
+            UiInteraction.EventType.EXERCISE    -> {
+                binding.bgLayout.visibility = View.GONE
+                binding.bgsource.visibility = View.GONE
+                binding.sportDutyLayout.visibility = View.VISIBLE
+            }
+        }
+
+        // sargius added
+        binding.switchDutyOptions.setOnClickListener {
+            if (binding.switchDutyOptions.isChecked) {
+                Log.d(TAG, "Sport options checked")
+                binding.dutyLight.setChecked(true)
+            } else {
+                Log.d(TAG, "Sport options NOT checked")
+                binding.sportDuty.clearCheck()
             }
         }
 

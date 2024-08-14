@@ -153,4 +153,11 @@
     <string name="overview_editquickwizard_usepercentage">Расчет процента</string>
     <string name="app_default">Из настроек приложения</string>
     <string name="a11y_drag_and_drop_handle">перетаскиватель</string>
+
+    <!-- Sport Options -->
+    <string name="sport_duty_options_label">Опции Спортивных Нагрузок</string>
+    <string name="duty_option_light">Лёгкие</string>
+    <string name="duty_option_middle">Средние</string>
+    <string name="duty_option_heavy">Тяжёлые</string>
+
 </resources>

@@ -14,22 +14,41 @@ class InsertIfNewByTimestampTherapyEventTransaction(
         enteredBy: String? = null,
         glucose: Double? = null,
         glucoseType: TherapyEvent.MeterType? = null,
-        glucoseUnit: TherapyEvent.GlucoseUnit
+        glucoseUnit: TherapyEvent.GlucoseUnit,
+        exerciseDuty: TherapyEvent.ExerciseDuty? = null
     ) :
-        this(TherapyEvent(timestamp = timestamp, type = type, duration = duration, note = note, enteredBy = enteredBy, glucose = glucose, glucoseType = glucoseType, glucoseUnit = glucoseUnit))
+        this (
+            TherapyEvent(
+                timestamp = timestamp,
+                type = type,
+                duration = duration,
+                note = note,
+                enteredBy = enteredBy,
+                glucose = glucose,
+                glucoseType = glucoseType,
+                glucoseUnit = glucoseUnit,
+                exerciseDuty = exerciseDuty
+            )
+        )
+
 
     override fun run(): TransactionResult {
         val result = TransactionResult()
         val current = database.therapyEventDao.findByTimestamp(therapyEvent.type, therapyEvent.timestamp)
+
         if (current == null) {
             database.therapyEventDao.insertNewEntry(therapyEvent)
             result.inserted.add(therapyEvent)
-        } else result.existing.add(therapyEvent)
+
+        } else {
+            result.existing.add(therapyEvent)
+        }
+
         return result
     }
 
-    class TransactionResult {
 
+    class TransactionResult {
         val inserted = mutableListOf<TherapyEvent>()
         val existing = mutableListOf<TherapyEvent>()
     }

@@ -75,6 +75,7 @@ class Converters {
     @TypeConverter
     fun toTempTargetReason(tempTargetReason: String?) = tempTargetReason?.let { TemporaryTarget.Reason.valueOf(it) }
 
+
     @TypeConverter
     fun fromTherapyEventType(therapyEventType: TherapyEvent.Type?) = therapyEventType?.name
 
@@ -88,6 +89,19 @@ class Converters {
     fun toGlucoseType(meterType: String?) = meterType?.let { TherapyEvent.MeterType.valueOf(it) }
 
     @TypeConverter
+    fun fromTherapyGlucoseUnit(glucoseUnit: TherapyEvent.GlucoseUnit?) = glucoseUnit?.name
+
+    @TypeConverter
+    fun toTherapyGlucoseUnit(glucoseUnit: String?) = glucoseUnit?.let { TherapyEvent.GlucoseUnit.valueOf(it) }
+
+    @TypeConverter
+    fun fromTherapyEventExerciseDuty(exerciseDuty: TherapyEvent.ExerciseDuty?) = exerciseDuty?.name
+
+    @TypeConverter
+    fun toTherapyEventExerciseDuty(exerciseDuty: String?) = exerciseDuty?.let { TherapyEvent.ExerciseDuty.valueOf(it) }
+
+
+    @TypeConverter
     fun fromProfileSwitchGlucoseUnit(glucoseUnit: ProfileSwitch.GlucoseUnit?) = glucoseUnit?.name
 
     @TypeConverter
@@ -98,12 +112,6 @@ class Converters {
 
     @TypeConverter
     fun toEffectiveProfileSwitchGlucoseUnit(glucoseUnit: String?) = glucoseUnit?.let { EffectiveProfileSwitch.GlucoseUnit.valueOf(it) }
-
-    @TypeConverter
-    fun fromTherapyGlucoseUnit(glucoseUnit: TherapyEvent.GlucoseUnit?) = glucoseUnit?.name
-
-    @TypeConverter
-    fun toTherapyGlucoseUnit(glucoseUnit: String?) = glucoseUnit?.let { TherapyEvent.GlucoseUnit.valueOf(it) }
 
     @TypeConverter
     fun fromPumpType(pumpType: InterfaceIDs.PumpType?) = pumpType?.name

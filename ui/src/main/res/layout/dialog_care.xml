@@ -135,7 +135,7 @@
                     android:text="@string/duty_option_middle" />
 
                 <RadioButton
-                    android:id="@+id/duty_high"
+                    android:id="@+id/duty_heavy"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/duty_option_heavy" />

@@ -599,6 +599,7 @@
     <string name="weekday_wednesday_short">Ср</string>
     <string name="weekday_tuesday_short">Вт</string>
     <string name="weekday_monday_short">Пн</string>
+
     <!-- WeekdayPicker -->
     <string name="monday_short">Пн</string>
     <string name="tuesday_short">Вт</string>
@@ -607,7 +608,16 @@
     <string name="friday_short">Пт</string>
     <string name="saturday_short">Сб</string>
     <string name="sunday_short">Вс</string>
+
     <!--    DecimalFormatterImpl -->
     <string name="format_insulin_units1">%1$.1fед</string>
     <string name="format_insulin_units">%1$.2f ед</string>
+
+    <!-- Sport Options -->
+    <string name="sport_duty_options_label">Опции Спортивных Нагрузок</string>
+    <string name="duty_option_none">Не выбрано</string>
+    <string name="duty_option_light">Лёгкие</string>
+    <string name="duty_option_middle">Средние</string>
+    <string name="duty_option_heavy">Тяжёлые</string>
+
 </resources>

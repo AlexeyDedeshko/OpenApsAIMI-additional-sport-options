@@ -175,8 +175,9 @@
     <string name="app_default">Application default</string>
     <string name="a11y_drag_and_drop_handle">drag and drop handle</string>
 
-    <!-- Sport Options -->
+    <!-- Sport Options, дублирует :core:ui: -->
     <string name="sport_duty_options_label">Sport Duty Options</string>
+    <string name="duty_option_none">None</string>
     <string name="duty_option_light">Light</string>
     <string name="duty_option_middle">Middle</string>
     <string name="duty_option_heavy">Heavy</string>

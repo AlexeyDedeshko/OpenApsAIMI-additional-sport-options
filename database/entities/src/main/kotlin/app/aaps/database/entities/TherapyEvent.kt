@@ -26,6 +26,7 @@ import java.util.TimeZone
         Index("timestamp")
     ]
 )
+
 data class TherapyEvent(
     @PrimaryKey(autoGenerate = true)
     override var id: Long = 0,
@@ -44,25 +45,29 @@ data class TherapyEvent(
     var glucose: Double? = null,
     var glucoseType: MeterType? = null,
     var glucoseUnit: GlucoseUnit,
+    var exerciseDuty: ExerciseDuty? = null
+
 ) : TraceableDBEntry, DBEntryWithTimeAndDuration {
 
     fun contentEqualsTo(other: TherapyEvent): Boolean =
         isValid == other.isValid &&
-            timestamp == other.timestamp &&
-            utcOffset == other.utcOffset &&
-            duration == other.duration &&
-            type == other.type &&
-            note == other.note &&
-            enteredBy == other.enteredBy &&
-            glucose == other.glucose &&
-            glucoseType == other.glucoseType &&
-            glucoseUnit == other.glucoseUnit
+        timestamp == other.timestamp &&
+        utcOffset == other.utcOffset &&
+        duration == other.duration &&
+        type == other.type &&
+        note == other.note &&
+        enteredBy == other.enteredBy &&
+        glucose == other.glucose &&
+        glucoseType == other.glucoseType &&
+        glucoseUnit == other.glucoseUnit &&
+        exerciseDuty == other.exerciseDuty
 
     fun onlyNsIdAdded(previous: TherapyEvent): Boolean =
         previous.id != id &&
             contentEqualsTo(previous) &&
             previous.interfaceIDs.nightscoutId == null &&
             interfaceIDs.nightscoutId != null
+
 
     enum class GlucoseUnit(val toString: String) {
         MGDL(ValueWithUnit.MGDL),
@@ -71,6 +76,7 @@ data class TherapyEvent(
         companion object
     }
 
+
     enum class MeterType(val text: String) {
         FINGER("Finger"),
         SENSOR("Sensor"),
@@ -78,14 +84,26 @@ data class TherapyEvent(
         ;
 
         companion object {
-
             fun fromString(text: String?) = values().firstOrNull { it.text == text }
         }
     }
 
+
+    enum class ExerciseDuty(val text: String) {
+        NONE("None"),
+        LIGHT("Light"),
+        MIDDLE("Middle"),
+        HEAVY("Heavy")
+        ;
+
+        companion object {
+            fun fromString(text: String?) = values().firstOrNull { it.text == text }
+        }
+    }
+
+
     @Suppress("unused")
     enum class Type(val text: String, val nsNative: Boolean = false) {
-
         CANNULA_CHANGE("Site Change", nsNative = true),
         INSULIN_CHANGE("Insulin Change", nsNative = true),
         PUMP_BATTERY_CHANGE("Pump Battery Change", nsNative = true),

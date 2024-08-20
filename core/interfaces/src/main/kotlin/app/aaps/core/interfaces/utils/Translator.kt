@@ -12,6 +12,7 @@ interface Translator {
     fun translate(units: ValueWithUnit?): String
     fun translate(meterType: TherapyEvent.MeterType?): String
     fun translate(type: TherapyEvent.Type?): String
+    fun translate(exerciseDuty: TherapyEvent.ExerciseDuty?): String
     fun translate(reason: TemporaryTarget.Reason?): String
     fun translate(reason: OfflineEvent.Reason?): String
     fun translate(source: UserEntry.Sources): String

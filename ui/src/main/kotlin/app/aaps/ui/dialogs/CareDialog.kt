@@ -102,6 +102,7 @@ class CareDialog : DialogFragmentWithDate() {
                 UiInteraction.EventType.ANNOUNCEMENT   -> app.aaps.core.main.R.drawable.ic_cp_announcement
             }
         )
+
         binding.title.text = rh.gs(
             when (options) {
                 UiInteraction.EventType.BGCHECK        -> app.aaps.core.ui.R.string.careportal_bgcheck
@@ -151,7 +152,14 @@ class CareDialog : DialogFragmentWithDate() {
             }
         }
 
+        binding.sportDuty.setOnClickListener {
+            if (binding.dutyLight.isSelected || binding.dutyMiddle.isSelected || binding.dutyHeavy.isSelected) {
+                binding.switchDutyOptions.setChecked(true)
+            }
+        }
+
         val bg = profileUtil.fromMgdlToUnits(glucoseStatusProvider.glucoseStatusData?.glucose ?: 0.0)
+
         val bgTextWatcher: TextWatcher = object : TextWatcher {
             override fun afterTextChanged(s: Editable) {}
             override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
@@ -166,6 +174,7 @@ class CareDialog : DialogFragmentWithDate() {
                 savedInstanceState?.getDouble("bg")
                     ?: bg, 2.0, 30.0, 0.1, DecimalFormat("0.0"), false, binding.okcancel.ok, bgTextWatcher
             )
+
         } else {
             binding.bgUnits.text = rh.gs(app.aaps.core.ui.R.string.mgdl)
             binding.bg.setParams(
@@ -173,12 +182,16 @@ class CareDialog : DialogFragmentWithDate() {
                     ?: bg, 36.0, 500.0, 1.0, DecimalFormat("0"), false, binding.okcancel.ok, bgTextWatcher
             )
         }
+
         binding.duration.setParams(
             savedInstanceState?.getDouble("duration")
                 ?: 0.0, 0.0, Constants.MAX_PROFILE_SWITCH_DURATION, 10.0, DecimalFormat("0"), false, binding.okcancel.ok
         )
-        if (options == UiInteraction.EventType.NOTE || options == UiInteraction.EventType.QUESTION || options == UiInteraction.EventType.ANNOUNCEMENT || options == UiInteraction.EventType.EXERCISE)
+
+        if (options == UiInteraction.EventType.NOTE || options == UiInteraction.EventType.QUESTION || options == UiInteraction.EventType.ANNOUNCEMENT || options == UiInteraction.EventType.EXERCISE) {
             binding.notesLayout.root.visibility = View.VISIBLE // independent to preferences
+        }
+
         binding.bgLabel.labelFor = binding.bg.editTextId
         binding.durationLabel.labelFor = binding.duration.editTextId
     }
@@ -190,7 +203,12 @@ class CareDialog : DialogFragmentWithDate() {
 
     override fun submit(): Boolean {
         val enteredBy = sp.getString("careportal_enteredby", "AndroidAPS")
-        val unitResId = if (profileFunction.getUnits() == GlucoseUnit.MGDL) app.aaps.core.ui.R.string.mgdl else app.aaps.core.ui.R.string.mmol
+
+        val unitResId = if (profileFunction.getUnits() == GlucoseUnit.MGDL) {
+            app.aaps.core.ui.R.string.mgdl
+        } else {
+            app.aaps.core.ui.R.string.mmol
+        }
 
         eventTime -= eventTime % 1000
 
@@ -209,6 +227,7 @@ class CareDialog : DialogFragmentWithDate() {
         )
 
         val actions: LinkedList<String> = LinkedList()
+
         if (options == UiInteraction.EventType.BGCHECK || options == UiInteraction.EventType.QUESTION || options == UiInteraction.EventType.ANNOUNCEMENT) {
             val meterType =
                 when {
@@ -216,27 +235,51 @@ class CareDialog : DialogFragmentWithDate() {
                     binding.sensor.isChecked -> TherapyEvent.MeterType.SENSOR
                     else                     -> TherapyEvent.MeterType.MANUAL
                 }
+
             actions.add(rh.gs(R.string.glucose_type) + ": " + translator.translate(meterType))
             actions.add(rh.gs(app.aaps.core.ui.R.string.bg_label) + ": " + profileUtil.stringInCurrentUnitsDetect(binding.bg.value) + " " + rh.gs(unitResId))
+
             therapyEvent.glucoseType = meterType
             therapyEvent.glucose = binding.bg.value
+
             valuesWithUnit.add(ValueWithUnit.fromGlucoseUnit(binding.bg.value, profileFunction.getUnits().asText))
             valuesWithUnit.add(ValueWithUnit.TherapyEventMeterType(meterType))
         }
+
         if (options == UiInteraction.EventType.NOTE || options == UiInteraction.EventType.EXERCISE) {
             actions.add(rh.gs(app.aaps.core.ui.R.string.duration_label) + ": " + rh.gs(app.aaps.core.ui.R.string.format_mins, binding.duration.value.toInt()))
+
             therapyEvent.duration = T.mins(binding.duration.value.toLong()).msecs()
+
             valuesWithUnit.add(ValueWithUnit.Minute(binding.duration.value.toInt()).takeIf { !binding.duration.value.equals(0.0) })
         }
+
+        if (options == UiInteraction.EventType.EXERCISE) {
+            val exerciseDuty = when {
+                binding.dutyLight.isChecked  -> TherapyEvent.ExerciseDuty.LIGHT
+                binding.dutyMiddle.isChecked  -> TherapyEvent.ExerciseDuty.MIDDLE
+                binding.dutyHeavy.isChecked  -> TherapyEvent.ExerciseDuty.HEAVY
+
+                else -> TherapyEvent.ExerciseDuty.NONE
+            }
+
+            actions.add(rh.gs(R.string.sport_duty_options_label) + ": " + translator.translate(exerciseDuty))
+            therapyEvent.exerciseDuty = exerciseDuty
+            Log.d(TAG, "exerciseDuty = $exerciseDuty")
+        }
+
         val notes = binding.notesLayout.notes.text.toString()
         if (notes.isNotEmpty()) {
             actions.add(rh.gs(app.aaps.core.ui.R.string.notes_label) + ": " + notes)
             therapyEvent.note = notes
         }
 
-        if (eventTimeChanged) actions.add(rh.gs(app.aaps.core.ui.R.string.time) + ": " + dateUtil.dateAndTimeString(eventTime))
+        if (eventTimeChanged) {
+            actions.add(rh.gs(app.aaps.core.ui.R.string.time) + ": " + dateUtil.dateAndTimeString(eventTime))
+        }
 
         therapyEvent.enteredBy = enteredBy
+        Log.d(TAG, "enteredBy = $enteredBy")
 
         val source = when (options) {
             UiInteraction.EventType.BGCHECK        -> UserEntry.Sources.BgCheck
@@ -260,6 +303,7 @@ class CareDialog : DialogFragmentWithDate() {
                 uel.log(UserEntry.Action.CAREPORTAL, source, notes, valuesWithUnit)
             }, null)
         }
+
         return true
     }
 }

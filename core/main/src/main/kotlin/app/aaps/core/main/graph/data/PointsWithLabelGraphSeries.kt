@@ -31,7 +31,6 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
      * You can also render a custom drawing via [com.jjoe64.graphview.series.PointsGraphSeries.CustomShape]
      */
     enum class Shape {
-
         BG,
         PREDICTION,
         TRIANGLE,
@@ -164,11 +163,13 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     mPaint.style = value.paintStyle
                     mPaint.strokeWidth = 0f
                     canvas.drawCircle(endX, endY, value.size * scaledPxSize, mPaint)
+
                 } else if (value.shape == Shape.BG || value.shape == Shape.IOB_PREDICTION || value.shape == Shape.BUCKETED_BG) {
                     mPaint.color = value.color(graphView.context)
                     mPaint.style = value.paintStyle
                     mPaint.strokeWidth = 0f
                     canvas.drawCircle(endX, endY, value.size * scaledPxSize, mPaint)
+
                 } else if (value.shape == Shape.PREDICTION) {
                     mPaint.color = value.color(graphView.context)
                     mPaint.style = value.paintStyle
@@ -177,8 +178,10 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     mPaint.style = value.paintStyle
                     mPaint.strokeWidth = 0f
                     canvas.drawCircle(endX, endY, scaledPxSize / 3, mPaint)
+
                 } else if (value.shape == Shape.RECTANGLE) {
                     canvas.drawRect(endX - scaledPxSize, endY - scaledPxSize, endX + scaledPxSize, endY + scaledPxSize, mPaint)
+
                 } else if (value.shape == Shape.TRIANGLE) {
                     mPaint.strokeWidth = 0f
                     val points = arrayOf(
@@ -187,6 +190,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                         Point((endX - scaledPxSize).toInt(), (endY + scaledPxSize * 0.67).toInt())
                     )
                     drawArrows(points, canvas, mPaint)
+
                 } else if (value.shape == Shape.BOLUS) {
                     mPaint.strokeWidth = 0f
                     val points = arrayOf(
@@ -197,6 +201,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     mPaint.style = Paint.Style.FILL_AND_STROKE
                     drawArrows(points, canvas, mPaint)
                     if (value.label.isNotEmpty()) drawLabel45Right(endX, endY, value, canvas, scaledPxSize, scaledTextSize)
+
                 } else if (value.shape == Shape.CARBS) {
                     mPaint.strokeWidth = 0f
                     val points = arrayOf(
@@ -207,6 +212,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     mPaint.style = Paint.Style.FILL_AND_STROKE
                     drawArrows(points, canvas, mPaint)
                     if (value.label.isNotEmpty()) drawLabel45Left(endX, endY, value, canvas, scaledPxSize, scaledTextSize)
+
                 } else if (value.shape == Shape.SMB) {
                     mPaint.strokeWidth = 2f
                     val size = value.size * scaledPxSize
@@ -217,6 +223,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     )
                     mPaint.style = Paint.Style.FILL_AND_STROKE
                     drawArrows(points, canvas, mPaint)
+
                 } else if (value.shape == Shape.EXTENDEDBOLUS) {
                     mPaint.strokeWidth = 0f
                     if (value.label.isNotEmpty()) {
@@ -228,11 +235,13 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                         mPaint.isFakeBoldText = true
                         canvas.drawText(value.label, endX, endY, mPaint)
                     }
+
                 } else if (value.shape == Shape.HEARTRATE) {
                     mPaint.strokeWidth = 0f
                     val bounds = Rect(endX.toInt(), endY.toInt() - 8, xPlusLength.toInt(), endY.toInt() + 8)
                     mPaint.style = Paint.Style.FILL_AND_STROKE
                     canvas.drawRect(bounds, mPaint)
+
                 } else if (value.shape == Shape.PROFILE) {
                     val drawable = ContextCompat.getDrawable(graphView.context, R.drawable.ic_ribbon_profile) ?: break
                     drawable.setColorFilter(Color.WHITE, PorterDuff.Mode.MULTIPLY)
@@ -252,15 +261,18 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                     val py = endY + drawable.intrinsicHeight
                     mPaint.style = Paint.Style.FILL
                     canvas.drawText(value.label, px, py, mPaint)
+
                 } else if (value.shape == Shape.MBG) {
                     mPaint.style = Paint.Style.STROKE
                     mPaint.strokeWidth = 5f
                     canvas.drawCircle(endX, endY, scaledPxSize, mPaint)
+
                 } else if (value.shape == Shape.BGCHECK || value.shape == Shape.ANNOUNCEMENT || value.shape == Shape.GENERAL) {
                     mPaint.style = Paint.Style.FILL_AND_STROKE
                     mPaint.strokeWidth = 0f
                     canvas.drawCircle(endX, endY, scaledPxSize, mPaint)
                     if (value.label.isNotEmpty()) drawLabel45Right(endX, endY, value, canvas, scaledPxSize, scaledTextSize)
+
                 } else if (value.shape == Shape.EXERCISE) {
                     mPaint.strokeWidth = 0f
                     if (!value.label.isEmpty()) {
@@ -275,6 +287,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                         mPaint.strokeWidth = 5f
                         canvas.drawRect(endX - 3, bounds.top + py - 3, xPlusLength + 3, bounds.bottom + py + 3, mPaint)
                     }
+
                 } else if (value.shape == Shape.OPENAPS_OFFLINE && value.duration != 0L) {
                     mPaint.strokeWidth = 0f
                     if (!value.label.isEmpty()) {
@@ -282,6 +295,7 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                         mPaint.strokeWidth = 5f
                         canvas.drawRect(endX - 3, graphTop, xPlusLength + 3, graphTop + graphHeight, mPaint)
                     }
+
                 } else if (value.shape == Shape.GENERAL_WITH_DURATION) {
                     mPaint.strokeWidth = 0f
                     if (!value.label.isEmpty()) {
@@ -297,7 +311,8 @@ class PointsWithLabelGraphSeries<E : DataPointWithLabelInterface> : BaseSeries<E
                         canvas.drawRect(endX - 3, bounds.top + py - 3, xPlusLength + 3, bounds.bottom + py + 3, mPaint)
                     }
                 }
-                // set values above point
+
+            // set values above point
             }
         }
     }

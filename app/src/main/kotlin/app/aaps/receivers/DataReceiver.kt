@@ -61,17 +61,6 @@ open class DataReceiver : DaggerBroadcastReceiver() {
                         it.copyLong("com.fanqies.tomatofn.Extras.Time", bundle)
                     }.build()).build()
 
-            Intents.NS_EMULATOR                       ->
-                OneTimeWorkRequest.Builder(MM640gPlugin.MM640gWorker::class.java)
-                    .setInputData(Data.Builder().also {
-                        it.copyString("collection", bundle)
-                        it.copyString("data", bundle)
-                    }.build()).build()
-
-            Telephony.Sms.Intents.SMS_RECEIVED_ACTION ->
-                OneTimeWorkRequest.Builder(SmsCommunicatorPlugin.SmsCommunicatorWorker::class.java)
-                    .setInputData(dataWorkerStorage.storeInputData(bundle, intent.action)).build()
-
             Intents.EVERSENSE_BG                      ->
                 OneTimeWorkRequest.Builder(EversensePlugin.EversenseWorker::class.java)
                     .setInputData(dataWorkerStorage.storeInputData(bundle, intent.action)).build()
@@ -84,8 +73,19 @@ open class DataReceiver : DaggerBroadcastReceiver() {
                 OneTimeWorkRequest.Builder(AidexPlugin.AidexWorker::class.java)
                     .setInputData(dataWorkerStorage.storeInputData(bundle, intent.action)).build()
 
-            else                                      -> null
+            Intents.NS_EMULATOR                       ->
+                OneTimeWorkRequest.Builder(MM640gPlugin.MM640gWorker::class.java)
+                    .setInputData(Data.Builder().also {
+                        it.copyString("collection", bundle)
+                        it.copyString("data", bundle)
+                    }.build()).build()
+
+            Telephony.Sms.Intents.SMS_RECEIVED_ACTION ->
+                OneTimeWorkRequest.Builder(SmsCommunicatorPlugin.SmsCommunicatorWorker::class.java)
+                    .setInputData(dataWorkerStorage.storeInputData(bundle, intent.action)).build()
+
+            else -> null
+
         }?.let { request -> dataWorkerStorage.enqueue(request) }
     }
-
 }

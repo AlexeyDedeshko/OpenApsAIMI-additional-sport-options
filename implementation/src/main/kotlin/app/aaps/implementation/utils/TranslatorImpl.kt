@@ -179,7 +179,7 @@ class TranslatorImpl @Inject internal constructor(
     override fun translate(exerciseDuty: TherapyEvent.ExerciseDuty?): String = when (exerciseDuty) {
         TherapyEvent.ExerciseDuty.LIGHT -> rh.gs(app.aaps.core.ui.R.string.duty_option_light)
         TherapyEvent.ExerciseDuty.MIDDLE -> rh.gs(app.aaps.core.ui.R.string.duty_option_middle)
-        TherapyEvent.ExerciseDuty.MIDDLE -> rh.gs(app.aaps.core.ui.R.string.duty_option_heavy)
+        TherapyEvent.ExerciseDuty.HEAVY -> rh.gs(app.aaps.core.ui.R.string.duty_option_heavy)
 
         else -> rh.gs(app.aaps.core.ui.R.string.duty_option_none)
     }

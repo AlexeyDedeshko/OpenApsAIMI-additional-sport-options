@@ -82,7 +82,7 @@ class MainApp : DaggerApplication() {
     @Inject lateinit var compatDBHelper: CompatDBHelper
     @Inject lateinit var repository: AppRepository
     @Inject lateinit var dateUtil: DateUtil
-    @Suppress("unused") @Inject lateinit var staticInjector: StaticInjector// better avoid, here fake only to initialize
+    @Suppress("unused") @Inject lateinit var staticInjector: StaticInjector // better avoid, here fake only to initialize
     @Inject lateinit var uel: UserEntryLogger
     @Inject lateinit var uiInteraction: UiInteraction
     @Inject lateinit var notificationStore: NotificationStore
@@ -98,6 +98,7 @@ class MainApp : DaggerApplication() {
     override fun onCreate() {
         super.onCreate()
         aapsLogger.debug("onCreate")
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleListener.get())
         scope.launch {
             RxDogTag.install()
@@ -110,12 +111,15 @@ class MainApp : DaggerApplication() {
                 gitRemote = null
                 commitHash = null
             }
+
             disposable += compatDBHelper.dbChangeDisposable()
             registerActivityLifecycleCallbacks(activityMonitor)
             runOnUiThread { themeSwitcherPlugin.setThemeMode() }
+
             aapsLogger.debug("Version: " + config.VERSION_NAME)
             aapsLogger.debug("BuildVersion: " + config.BUILD_VERSION)
             aapsLogger.debug("Remote: " + config.REMOTE)
+
             registerLocalBroadcastReceiver()
 
             // trigger here to see the new version on app start after an update
@@ -126,27 +130,30 @@ class MainApp : DaggerApplication() {
             configBuilder.initialize()
 
             // delayed actions to make rh context updated for translations
-            handler.postDelayed(
-                {
-                    // check if identification is set
-                    if (config.isDev() && sp.getStringOrNull(app.aaps.core.utils.R.string.key_email_for_crash_report, null).isNullOrBlank())
-                        notificationStore.add(Notification(Notification.IDENTIFICATION_NOT_SET, rh.get().gs(R.string.identification_not_set), Notification.INFO))
-                    // log version
-                    disposable += repository.runTransaction(VersionChangeTransaction(config.VERSION_NAME, BuildConfig.VERSION_CODE, gitRemote, commitHash)).subscribe()
-                    // log app start
-                    if (sp.getBoolean(app.aaps.plugins.sync.R.string.key_ns_log_app_started_event, config.APS))
-                        disposable += repository
-                            .runTransaction(
-                                InsertIfNewByTimestampTherapyEventTransaction(
-                                    timestamp = dateUtil.now(),
-                                    type = TherapyEvent.Type.NOTE,
-                                    note = rh.get().gs(app.aaps.core.ui.R.string.androidaps_start) + " - " + Build.MANUFACTURER + " " + Build.MODEL,
-                                    glucoseUnit = TherapyEvent.GlucoseUnit.MGDL
-                                )
+            handler.postDelayed({
+                // check if identification is set
+                if (config.isDev() && sp.getStringOrNull(app.aaps.core.utils.R.string.key_email_for_crash_report, null).isNullOrBlank()) {
+                    notificationStore.add(Notification(Notification.IDENTIFICATION_NOT_SET, rh.get().gs(R.string.identification_not_set), Notification.INFO))
+                }
+
+                // log version
+                disposable += repository.runTransaction(VersionChangeTransaction(config.VERSION_NAME, BuildConfig.VERSION_CODE, gitRemote, commitHash)).subscribe()
+
+                // log app start
+                if (sp.getBoolean(app.aaps.plugins.sync.R.string.key_ns_log_app_started_event, config.APS)) {
+                    disposable += repository
+                        .runTransaction(
+                            InsertIfNewByTimestampTherapyEventTransaction(
+                                timestamp = dateUtil.now(),
+                                type = TherapyEvent.Type.NOTE,
+                                note = rh.get().gs(app.aaps.core.ui.R.string.androidaps_start) + " - " + Build.MANUFACTURER + " " + Build.MODEL,
+                                glucoseUnit = TherapyEvent.GlucoseUnit.MGDL
                             )
-                            .subscribe()
-                }, 10000
-            )
+                        )
+                        .subscribe()
+                }
+            }, 10000)
+
             WorkManager.getInstance(this@MainApp).enqueueUniquePeriodicWork(
                 KeepAliveWorker.KA_0,
                 ExistingPeriodicWorkPolicy.UPDATE,
@@ -155,8 +162,10 @@ class MainApp : DaggerApplication() {
                     .setInitialDelay(5, TimeUnit.SECONDS)
                     .build()
             )
+
             localAlertUtils.shortenSnoozeInterval()
             localAlertUtils.preSnoozeAlarms()
+
             doMigrations()
             uel.log(UserEntry.Action.START_AAPS, UserEntry.Sources.Aaps)
 
@@ -166,9 +175,11 @@ class MainApp : DaggerApplication() {
                 Widget.updateWidget(this@MainApp, "ScheduleEveryMin")
             }
             handler.postDelayed(refreshWidget, 60000)
+
             val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
             val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
             sensorManager.registerListener(StepService, stepSensor, SensorManager.SENSOR_DELAY_NORMAL)
+
             config.appInitialized = true
         }
     }
@@ -197,6 +208,7 @@ class MainApp : DaggerApplication() {
                 Thread.currentThread().uncaughtExceptionHandler?.uncaughtException(Thread.currentThread(), e)
                 return@setErrorHandler
             }
+
             aapsLogger.warn(LTag.CORE, "Undeliverable exception received, not sure what to do", e.localizedMessage)
         }
     }
@@ -236,7 +248,6 @@ class MainApp : DaggerApplication() {
         sp.putString(app.aaps.plugins.main.R.string.value_dark_theme, "dark")
         sp.putString(app.aaps.plugins.main.R.string.value_light_theme, "light")
         sp.putString(app.aaps.plugins.main.R.string.value_system_theme, "system")
-
     }
 
     override fun applicationInjector(): AndroidInjector<out DaggerApplication> {

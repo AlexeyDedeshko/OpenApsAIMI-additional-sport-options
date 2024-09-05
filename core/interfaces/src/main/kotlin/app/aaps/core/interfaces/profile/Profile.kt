@@ -21,6 +21,7 @@ interface Profile {
      */
     val units: GlucoseUnit
 
+    // duration of insulin action
     //@Deprecated("Replace in favor of accessing InsulinProfile")
     val dia: Double
 

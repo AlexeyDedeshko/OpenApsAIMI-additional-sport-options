@@ -200,35 +200,42 @@ class IobCobCalculatorPlugin @Inject constructor(
 
     override fun calculateFromTreatmentsAndTemps(toTime: Long, profile: Profile): IobTotal {
         val now = System.currentTimeMillis()
-        val time = ads.roundUpTime(toTime)
+        val time = ads.roundUpTime(toTime) // round up to minutes, presented in milliseconds
         val cacheHit = iobTable[time]
+
         if (time < now && cacheHit != null) {
             //og.debug(">>> calculateFromTreatmentsAndTemps Cache hit " + new Date(time).toLocaleString());
             return cacheHit
         } // else log.debug(">>> calculateFromTreatmentsAndTemps Cache miss " + new Date(time).toLocaleString());
+
         val bolusIob = calculateIobFromBolusToTime(time).round()
         val basalIob = calculateIobToTimeFromTempBasalsIncludingConvertedExtended(time).round()
         // OpenAPSSMB only
         // Add expected zero temp basal for next 240 minutes
         val basalIobWithZeroTemp = basalIob.copy()
-        val t = TemporaryBasal(
+
+        val temporaryBasal = TemporaryBasal(
             timestamp = now + 60 * 1000L,
             duration = 240 * 60 * 1000L,
             rate = 0.0,
             isAbsolute = true,
             type = TemporaryBasal.Type.NORMAL
         )
-        if (t.timestamp < time) {
-            val calc = t.iobCalc(time, profile, activePlugin.activeInsulin)
+
+        if (temporaryBasal.timestamp < time) {
+            val calc = temporaryBasal.iobCalc(time, profile, activePlugin.activeInsulin)
             basalIobWithZeroTemp.plus(calc)
         }
+
         basalIob.iobWithZeroTemp = IobTotal.combine(bolusIob, basalIobWithZeroTemp).round()
         val iobTotal = IobTotal.combine(bolusIob, basalIob).round()
+
         if (time < System.currentTimeMillis()) {
             synchronized(dataLock) {
                 iobTable.put(time, iobTotal)
             }
         }
+
         return iobTotal
     }
 
@@ -239,21 +246,25 @@ class IobCobCalculatorPlugin @Inject constructor(
         // OpenAPSSMB only
         // Add expected zero temp basal for next 240 minutes
         val basalIobWithZeroTemp = basalIob.copy()
-        val t = TemporaryBasal(
+
+        val temporaryBasal = TemporaryBasal(
             timestamp = now + 60 * 1000L,
             duration = 240 * 60 * 1000L,
             rate = 0.0,
             isAbsolute = true,
             type = TemporaryBasal.Type.NORMAL
         )
-        if (t.timestamp < time) {
-            val profile = profileFunction.getProfile(t.timestamp)
+
+        if (temporaryBasal.timestamp < time) {
+            val profile = profileFunction.getProfile(temporaryBasal.timestamp)
             if (profile != null) {
-                val calc = t.iobCalc(time, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
+                val calc = temporaryBasal.iobCalc(time, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
                 basalIobWithZeroTemp.plus(calc)
             }
         }
+
         basalIob.iobWithZeroTemp = IobTotal.combine(bolusIob, basalIobWithZeroTemp).round()
+
         return IobTotal.combine(bolusIob, basalIob).round()
     }
 
@@ -360,16 +371,21 @@ class IobCobCalculatorPlugin @Inject constructor(
     }
 
     override fun calculateIobArrayInDia(profile: Profile): Array<IobTotal> {
-        // predict IOB out to DIA plus 30m
+        // predict IOB (insulin on board) out to DIA (duration of insulin action) plus 30m
         var time = System.currentTimeMillis()
         time = ads.roundUpTime(time)
+
+        // sargius, profile.dia задан в часах. Рассчитывается кол-во 5-минутных интервалов
         val len = ((profile.dia * 60 + 30) / 5).toInt()
         val array = Array(len) { IobTotal(0) }
+
+        // TODO: (pos, i) не нужен, один из них можно убрать. Например, использовать только i
         for ((pos, i) in (0 until len).withIndex()) {
             val t = time + i * 5 * 60000
             val iob = calculateFromTreatmentsAndTemps(t, profile)
             array[pos] = iob
         }
+
         return array
     }
 
@@ -379,8 +395,8 @@ class IobCobCalculatorPlugin @Inject constructor(
         val len = 4 * 60 / 5
         val array = Array(len) { IobTotal(0) }
         for ((pos, i) in (0 until len).withIndex()) {
-            val t = now + i * 5 * 60000
-            val iob = calculateFromTreatmentsAndTemps(t, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget)
+            val timeNextFiveMinutes = now + i * 5 * 60000
+            val iob = calculateFromTreatmentsAndTemps(timeNextFiveMinutes, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget)
             array[pos] = iob
         }
         return array
@@ -516,19 +532,24 @@ class IobCobCalculatorPlugin @Inject constructor(
 
         val boluses = repository.getBolusesDataFromTime(toTime - range(), true).blockingGet()
 
-        boluses.forEach { t ->
-            if (t.isValid && t.timestamp < toTime) {
-                val tIOB = t.iobCalc(activePlugin, toTime, dia)
-                total.iob += tIOB.iobContrib
-                total.activity += tIOB.activityContrib
-                if (t.amount > 0 && t.timestamp > total.lastBolusTime) total.lastBolusTime = t.timestamp
-                if (t.type != Bolus.Type.SMB) {
+        boluses.forEach { bolusAtTime ->
+            if (bolusAtTime.isValid && bolusAtTime.timestamp < toTime) {
+                val iobCalculatedFromBolus = bolusAtTime.iobCalc(activePlugin, toTime, dia)
+                total.iob += iobCalculatedFromBolus.iobContrib
+                total.activity += iobCalculatedFromBolus.activityContrib
+
+                // reveal last bolus time of IobTotal for oref1 algo
+                if (bolusAtTime.amount > 0 && bolusAtTime.timestamp > total.lastBolusTime) {
+                    total.lastBolusTime = bolusAtTime.timestamp
+                }
+
+                if (bolusAtTime.type != Bolus.Type.SMB) {
                     // instead of dividing the DIA that only worked on the bilinear curves,
                     // multiply the time the treatment is seen active.
-                    val timeSinceTreatment = toTime - t.timestamp
-                    val snoozeTime = t.timestamp + (timeSinceTreatment * divisor).toLong()
-                    val bIOB = t.iobCalc(activePlugin, snoozeTime, dia)
-                    total.bolussnooze += bIOB.iobContrib
+                    val timeSinceTreatment = toTime - bolusAtTime.timestamp
+                    val snoozeTime = bolusAtTime.timestamp + (timeSinceTreatment * divisor).toLong()
+                    val iobCalculatedForSnoozeTime = bolusAtTime.iobCalc(activePlugin, snoozeTime, dia)
+                    total.bolussnooze += iobCalculatedForSnoozeTime.iobContrib
                 }
             }
         }
@@ -541,21 +562,30 @@ class IobCobCalculatorPlugin @Inject constructor(
         val total = IobTotal(toTime)
         val now = dateUtil.now()
         val pumpInterface = activePlugin.activePump
+
         if (!pumpInterface.isFakingTempsByExtendedBoluses) {
             val extendedBoluses = repository.getExtendedBolusDataFromTimeToTime(toTime - range(), toTime, true).blockingGet()
+
             for (pos in extendedBoluses.indices) {
-                val e = extendedBoluses[pos]
-                if (e.timestamp > toTime) continue
-                if (e.end > now) {
-                    val newDuration = now - e.timestamp
-                    e.amount *= newDuration.toDouble() / e.duration
-                    e.duration = newDuration
+                val extendedBolusAtPosition = extendedBoluses[pos]
+
+                if (extendedBolusAtPosition.timestamp > toTime) {
+                    continue
                 }
-                val profile = profileFunction.getProfile(e.timestamp) ?: return total
-                val calc = e.iobCalc(toTime, profile, activePlugin.activeInsulin)
-                total.plus(calc)
+
+                if (extendedBolusAtPosition.end > now) {
+                    val newDuration = now - extendedBolusAtPosition.timestamp
+                    extendedBolusAtPosition.amount *= newDuration.toDouble() / extendedBolusAtPosition.duration
+                    extendedBolusAtPosition.duration = newDuration
+                }
+
+                val profile = profileFunction.getProfile(extendedBolusAtPosition.timestamp) ?: return total
+
+                val iobCalculatedFromExtendedBolusAtPosition = extendedBolusAtPosition.iobCalc(toTime, profile, activePlugin.activeInsulin)
+                total.plus(iobCalculatedFromExtendedBolusAtPosition)
             }
         }
+
         return total
     }
 
@@ -629,30 +659,42 @@ class IobCobCalculatorPlugin @Inject constructor(
         val pumpInterface = activePlugin.activePump
 
         val temporaryBasals = repository.getTemporaryBasalsDataFromTimeToTime(toTime - range(), toTime, true).blockingGet()
+
         for (pos in temporaryBasals.indices) {
-            val t = temporaryBasals[pos]
-            if (t.timestamp > toTime) continue
-            val profile = profileFunction.getProfile(t.timestamp) ?: continue
-            if (t.end > now) t.duration = now - t.timestamp
-            val calc = t.iobCalc(toTime, profile, activePlugin.activeInsulin)
+            val temporaryBasalAtTime = temporaryBasals[pos]
+
+            if (temporaryBasalAtTime.timestamp > toTime) continue
+            val profile = profileFunction.getProfile(temporaryBasalAtTime.timestamp) ?: continue
+
+            if (temporaryBasalAtTime.end > now) {
+                temporaryBasalAtTime.duration = now - temporaryBasalAtTime.timestamp
+            }
+
+            val calc = temporaryBasalAtTime.iobCalc(toTime, profile, activePlugin.activeInsulin)
             //log.debug("BasalIOB " + new Date(time) + " >>> " + calc.basalIob);
             total.plus(calc)
         }
+
         if (pumpInterface.isFakingTempsByExtendedBoluses) {
             val totalExt = IobTotal(toTime)
             val extendedBoluses = repository.getExtendedBolusDataFromTimeToTime(toTime - range(), toTime, true).blockingGet()
+
             for (pos in extendedBoluses.indices) {
-                val e = extendedBoluses[pos]
-                if (e.timestamp > toTime) continue
-                val profile = profileFunction.getProfile(e.timestamp) ?: continue
-                if (e.end > now) {
-                    val newDuration = now - e.timestamp
-                    e.amount *= newDuration.toDouble() / e.duration
-                    e.duration = newDuration
+                val extendedBolusAtTime = extendedBoluses[pos]
+
+                if (extendedBolusAtTime.timestamp > toTime) continue
+                val profile = profileFunction.getProfile(extendedBolusAtTime.timestamp) ?: continue
+
+                if (extendedBolusAtTime.end > now) {
+                    val newDuration = now - extendedBolusAtTime.timestamp
+                    extendedBolusAtTime.amount *= newDuration.toDouble() / extendedBolusAtTime.duration
+                    extendedBolusAtTime.duration = newDuration
                 }
-                val calc = e.iobCalc(toTime, profile, activePlugin.activeInsulin)
+
+                val calc = extendedBolusAtTime.iobCalc(toTime, profile, activePlugin.activeInsulin)
                 totalExt.plus(calc)
             }
+
             // Convert to basal iob
             totalExt.basaliob = totalExt.iob
             totalExt.iob = 0.0
@@ -660,38 +702,51 @@ class IobCobCalculatorPlugin @Inject constructor(
             totalExt.hightempinsulin = totalExt.extendedBolusInsulin
             total.plus(totalExt)
         }
+
         return total
     }
 
-    fun getCalculationToTimeTempBasals(toTime: Long, lastAutosensResult: AutosensResult, exercise_mode: Boolean, half_basal_exercise_target: Int, isTempTarget: Boolean): IobTotal {
+    private fun getCalculationToTimeTempBasals(toTime: Long, lastAutosensResult: AutosensResult, exercise_mode: Boolean, half_basal_exercise_target: Int, isTempTarget: Boolean): IobTotal {
         val total = IobTotal(toTime)
         val pumpInterface = activePlugin.activePump
         val now = dateUtil.now()
         val temporaryBasals = repository.getTemporaryBasalsDataFromTimeToTime(toTime - range(), toTime, true).blockingGet()
+
         for (pos in temporaryBasals.indices) {
-            val t = temporaryBasals[pos]
-            if (t.timestamp > toTime) continue
-            val profile = profileFunction.getProfile(t.timestamp) ?: continue
-            if (t.end > now) t.duration = now - t.timestamp
-            val calc = t.iobCalc(toTime, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
+            val temporaryBasalAtTime = temporaryBasals[pos]
+
+            if (temporaryBasalAtTime.timestamp > toTime) continue
+            val profile = profileFunction.getProfile(temporaryBasalAtTime.timestamp) ?: continue
+
+            if (temporaryBasalAtTime.end > now) {
+                temporaryBasalAtTime.duration = now - temporaryBasalAtTime.timestamp
+            }
+
+            val calc = temporaryBasalAtTime.iobCalc(toTime, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
             //log.debug("BasalIOB " + new Date(time) + " >>> " + calc.basalIob);
             total.plus(calc)
         }
+
         if (pumpInterface.isFakingTempsByExtendedBoluses) {
             val totalExt = IobTotal(toTime)
             val extendedBoluses = repository.getExtendedBolusDataFromTimeToTime(toTime - range(), toTime, true).blockingGet()
+
             for (pos in extendedBoluses.indices) {
-                val e = extendedBoluses[pos]
-                if (e.timestamp > toTime) continue
-                val profile = profileFunction.getProfile(e.timestamp) ?: continue
-                if (e.end > now) {
-                    val newDuration = now - e.timestamp
-                    e.amount *= newDuration.toDouble() / e.duration
-                    e.duration = newDuration
+                val extendedBolusAtTime = extendedBoluses[pos]
+
+                if (extendedBolusAtTime.timestamp > toTime) continue
+                val profile = profileFunction.getProfile(extendedBolusAtTime.timestamp) ?: continue
+
+                if (extendedBolusAtTime.end > now) {
+                    val newDuration = now - extendedBolusAtTime.timestamp
+                    extendedBolusAtTime.amount *= newDuration.toDouble() / extendedBolusAtTime.duration
+                    extendedBolusAtTime.duration = newDuration
                 }
-                val calc = e.iobCalc(toTime, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
+
+                val calc = extendedBolusAtTime.iobCalc(toTime, profile, lastAutosensResult, exercise_mode, half_basal_exercise_target, isTempTarget, activePlugin.activeInsulin)
                 totalExt.plus(calc)
             }
+
             // Convert to basal iob
             totalExt.basaliob = totalExt.iob
             totalExt.iob = 0.0
@@ -699,6 +754,7 @@ class IobCobCalculatorPlugin @Inject constructor(
             totalExt.hightempinsulin = totalExt.extendedBolusInsulin
             total.plus(totalExt)
         }
+
         return total
     }
 }

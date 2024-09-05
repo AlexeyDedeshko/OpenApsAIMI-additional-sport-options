@@ -734,14 +734,18 @@ class LoopPlugin @Inject constructor(
         var apsResult: JSONObject? = null
         var iob: JSONObject? = null
         var enacted: JSONObject? = null
+
+        // sargius, еще не прошло 5 минут после lastRun
         if (lastRun != null && lastRun.lastAPSRun > dateUtil.now() - 300 * 1000L) {
             // do not send if result is older than 1 min
             apsResult = lastRun.request?.json()?.also {
                 it.put("timestamp", dateUtil.toISOString(lastRun.lastAPSRun))
             }
+
             iob = lastRun.request?.iob?.json(dateUtil)?.also {
                 it.put("time", dateUtil.toISOString(lastRun.lastAPSRun))
             }
+
             val requested = JSONObject()
             if (lastRun.tbrSetByPump?.enacted == true) { // enacted
                 enacted = lastRun.request?.json()?.also {
@@ -749,20 +753,24 @@ class LoopPlugin @Inject constructor(
                     it.put("duration", lastRun.tbrSetByPump!!.json(profile.getBasal())["duration"])
                     it.put("received", true)
                 }
+
                 requested.put("duration", lastRun.request?.duration)
                 requested.put("rate", lastRun.request?.rate)
                 requested.put("temp", "absolute")
                 requested.put("smb", lastRun.request?.smb)
+
                 enacted?.put("requested", requested)
                 enacted?.put("smb", lastRun.tbrSetByPump?.bolusDelivered)
             }
-        } else {
+
+        } else { // sargius, уже прошло больше 5 минут после lastRun, нужно делать новые рассчеты
             val calcIob = iobCobCalculator.calculateIobArrayInDia(profile)
             if (calcIob.isNotEmpty()) {
                 iob = calcIob[0].json(dateUtil)
                 iob.put("time", dateUtil.toISOString(dateUtil.now()))
             }
         }
+
         repository.insert(
             DeviceStatus(
                 timestamp = dateUtil.now(),
@@ -777,6 +785,7 @@ class LoopPlugin @Inject constructor(
             )
         )
     }
+
 
     companion object {
 

@@ -78,6 +78,7 @@ class OverviewPlugin @Inject constructor(
 
     override val overviewBus = RxBusImpl(aapsSchedulers, aapsLogger)
 
+
     override fun addNotificationWithDialogResponse(id: Int, text: String, level: Int, @StringRes actionButtonId: Int, title: String, message: String) {
         rxBus.send(
             EventNewNotification(
@@ -113,30 +114,32 @@ class OverviewPlugin @Inject constructor(
             .toObservable(EventNewNotification::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ n ->
-                           if (notificationStore.add(n.notification))
-                               overviewBus.send(EventUpdateOverviewNotification("EventNewNotification"))
-                       }, fabricPrivacy::logException)
+               if (notificationStore.add(n.notification))
+                   overviewBus.send(EventUpdateOverviewNotification("EventNewNotification"))
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventDismissNotification::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ n ->
-                           if (notificationStore.remove(n.id))
-                               overviewBus.send(EventUpdateOverviewNotification("EventDismissNotification"))
-                       }, fabricPrivacy::logException)
+               if (notificationStore.remove(n.id))
+                   overviewBus.send(EventUpdateOverviewNotification("EventDismissNotification"))
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventIobCalculationProgress::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           overviewData.calcProgressPct = it.finalPercent
-                           overviewBus.send(EventUpdateOverviewCalcProgress("EventIobCalculationProgress"))
-                       }, fabricPrivacy::logException)
+               overviewData.calcProgressPct = it.finalPercent
+               overviewBus.send(EventUpdateOverviewCalcProgress("EventIobCalculationProgress"))
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventPumpStatusChanged::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           overviewData.pumpStatus = it.getStatus(context)
-                       }, fabricPrivacy::logException)
-
+               overviewData.pumpStatus = it.getStatus(context)
+            }, fabricPrivacy::logException)
     }
 
     override fun onStop() {
@@ -156,11 +159,13 @@ class OverviewPlugin @Inject constructor(
                 it.isEnabled = false
             }
         }
-        if (!config.isEngineeringMode())
+
+        if (!config.isEngineeringMode()) {
             (preferenceFragment.findPreference(rh.gs(app.aaps.core.utils.R.string.key_reset_boluswizard_percentage_time)) as ValidatingEditTextPreference?)?.let {
                 it.isVisible = false
                 it.isEnabled = false
             }
+        }
     }
 
     override fun configuration(): JSONObject =

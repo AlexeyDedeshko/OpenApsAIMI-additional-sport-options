@@ -5,13 +5,14 @@ import app.aaps.core.interfaces.iob.IobCobCalculator
 import app.aaps.core.interfaces.rx.events.Event
 
 interface CalculationWorkflow {
-    companion object {
 
+    companion object {
         const val MAIN_CALCULATION = "calculation"
         const val HISTORY_CALCULATION = "history_calculation"
         const val JOB = "job"
         const val PASS = "pass"
     }
+
 
     enum class ProgressData(val pass: Int, val percentOfTotal: Int) {
         DRAW_BG(0, 1),
@@ -32,7 +33,9 @@ interface CalculationWorkflow {
         }
     }
 
+
     fun stopCalculation(job: String, from: String)
+
     fun runCalculation(
         job: String,
         iobCobCalculator: IobCobCalculator,

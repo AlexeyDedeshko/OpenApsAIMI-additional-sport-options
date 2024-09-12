@@ -17,7 +17,7 @@ import app.aaps.ui.activities.fragments.TreatmentsProfileSwitchFragment
 import app.aaps.ui.activities.fragments.TreatmentsTempTargetFragment
 import app.aaps.ui.activities.fragments.TreatmentsTemporaryBasalsFragment
 import app.aaps.ui.activities.fragments.TreatmentsUserEntryFragment
-import app.aaps.ui.databinding.TreatmentsFragmentBinding
+import app.aaps.ui.databinding.ActivityTreatmentsBinding
 import javax.inject.Inject
 
 class TreatmentsActivity : TranslatedDaggerAppCompatActivity() {
@@ -26,11 +26,11 @@ class TreatmentsActivity : TranslatedDaggerAppCompatActivity() {
     @Inject lateinit var activePlugin: ActivePlugin
     @Inject lateinit var rh: ResourceHelper
 
-    private lateinit var binding: TreatmentsFragmentBinding
+    private lateinit var binding: ActivityTreatmentsBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = TreatmentsFragmentBinding.inflate(layoutInflater)
+        binding = ActivityTreatmentsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Use index, TabItems crashes with an id

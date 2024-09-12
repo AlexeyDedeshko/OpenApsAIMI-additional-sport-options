@@ -298,8 +298,10 @@ class CareDialog : DialogFragmentWithDate() {
                         { result -> result.inserted.forEach { aapsLogger.debug(LTag.DATABASE, "Inserted therapy event $it") } },
                         { aapsLogger.error(LTag.DATABASE, "Error while saving therapy event", it) }
                     )
+
                 valuesWithUnit.add(0, ValueWithUnit.Timestamp(eventTime).takeIf { eventTimeChanged })
                 valuesWithUnit.add(1, ValueWithUnit.TherapyEventType(therapyEvent.type))
+
                 uel.log(UserEntry.Action.CAREPORTAL, source, notes, valuesWithUnit)
             }, null)
         }

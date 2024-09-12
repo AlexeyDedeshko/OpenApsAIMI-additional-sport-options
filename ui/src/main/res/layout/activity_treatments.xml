@@ -57,7 +57,6 @@
             android:layout_height="wrap_content"
             android:contentDescription="@string/user_entry"
             android:icon="@drawable/ic_user_options" />
-
     </com.google.android.material.tabs.TabLayout>
 
     <FrameLayout

@@ -336,6 +336,7 @@ class MyPreferenceFragment : PreferenceFragmentCompat(), OnSharedPreferenceChang
             rh.gs(app.aaps.core.utils.R.string.key_high_mark),
             rh.gs(app.aaps.core.utils.R.string.key_low_mark)
         )
+
         if (unitDependent.toList().contains(pref.key) && pref is EditTextPreference) {
             val converted = profileUtil.valueInCurrentUnitsDetect(SafeParse.stringToDouble(pref.text))
             pref.summary = converted.toString()

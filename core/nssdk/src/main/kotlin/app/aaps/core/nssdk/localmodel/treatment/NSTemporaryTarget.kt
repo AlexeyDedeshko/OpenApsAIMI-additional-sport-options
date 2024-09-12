@@ -29,6 +29,7 @@ data class NSTemporaryTarget(
 
     fun targetBottomAsMgdl() = targetBottom.asMgdl()
     fun targetTopAsMgdl() = targetTop.asMgdl()
+
     enum class Reason(val text: String) {
         CUSTOM("Custom"),
         HYPOGLYCEMIA("Hypo"),

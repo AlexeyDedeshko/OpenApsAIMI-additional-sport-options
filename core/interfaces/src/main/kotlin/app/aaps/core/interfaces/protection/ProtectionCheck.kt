@@ -3,6 +3,7 @@ package app.aaps.core.interfaces.protection
 import androidx.fragment.app.FragmentActivity
 
 interface ProtectionCheck {
+
     enum class Protection {
         PREFERENCES,
         APPLICATION,

@@ -101,7 +101,7 @@ function enable_smb(
         if (meal_data.bwFound) {
             console.error("Warning: SMB enabled within 6h of using Bolus Wizard: be sure to easy bolus 30s before using Bolus Wizard");
         } else {
-            console.error("SMB enabled for temptarget of",convert_bg(target_bg, profile));
+            console.error("SMB enabled for temptarget of", convert_bg(target_bg, profile));
         }
         return true;
     }
@@ -215,6 +215,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         sensitivityRatio = autosens_data.ratio;
         console.log("Autosens ratio: "+sensitivityRatio+"; ");
     }
+
     if (sensitivityRatio) {
         basal = profile.current_basal * sensitivityRatio;
         basal = round_basal(basal, profile);
@@ -228,6 +229,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
     // adjust min, max, and target BG for sensitivity, such that 50% increase in ISF raises target from 100 to 120
     if (profile.temptargetSet) {
         //console.log("Temp Target set, not adjusting with autosens; ");
+
     } else if (typeof autosens_data !== 'undefined' && autosens_data) {
         if ( profile.sensitivity_raises_target && autosens_data.ratio < 1 || profile.resistance_lowers_target && autosens_data.ratio > 1 ) {
             // with a target of 100, default 0.7-1.2 autosens min/max range would allow a 93-117 target range
@@ -360,11 +362,13 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         target_bg = adjustedTargetBG;
         max_bg = adjustedMaxBG;
     // adjust target BG range if configured to bring down high BG faster
-    } else if ( bg > max_bg && profile.adv_target_adjustments && ! profile.temptargetSet ) {
+
+    } else if ( bg > max_bg && profile.adv_target_adjustments && !profile.temptargetSet ) {
         // with target=100, as BG rises from 100 to 160, adjustedTarget drops from 100 to 80
         adjustedMinBG = round(Math.max(80, min_bg - (bg - min_bg)/3 ),0);
         adjustedTargetBG =round( Math.max(80, target_bg - (bg - target_bg)/3 ),0);
         adjustedMaxBG = round(Math.max(80, max_bg - (bg - max_bg)/3 ),0);
+
         // if eventualBG, naive_eventualBG, and target_bg aren't all above adjustedMinBG, don’t use it
         //console.error("naive_eventualBG:",naive_eventualBG+", eventualBG:",eventualBG);
         if (eventualBG > adjustedMinBG && naive_eventualBG > adjustedMinBG && min_bg > adjustedMinBG) {
@@ -373,6 +377,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         } else {
             console.log("min_bg unchanged: "+min_bg+"; ");
         }
+
         // if eventualBG, naive_eventualBG, and target_bg aren't all above adjustedTargetBG, don’t use it
         if (eventualBG > adjustedTargetBG && naive_eventualBG > adjustedTargetBG && target_bg > adjustedTargetBG) {
             console.log("target_bg from "+target_bg+" to "+adjustedTargetBG+"; ");
@@ -380,6 +385,7 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
         } else {
             console.log("target_bg unchanged: "+target_bg+"; ");
         }
+
         // if eventualBG, naive_eventualBG, and max_bg aren't all above adjustedMaxBG, don’t use it
         if (eventualBG > adjustedMaxBG && naive_eventualBG > adjustedMaxBG && max_bg > adjustedMaxBG) {
             console.error("max_bg from "+max_bg+" to "+adjustedMaxBG);
@@ -434,7 +440,6 @@ var determine_basal = function determine_basal(glucose_status, currenttemp, iob_
 
     // enable UAM (if enabled in preferences)
     var enableUAM=(profile.enableUAM);
-
 
     //console.error(meal_data);
     // carb impact and duration are 0 unless changed below

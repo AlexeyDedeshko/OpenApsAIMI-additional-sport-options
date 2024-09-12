@@ -16,6 +16,7 @@ class InvalidateTemporaryTargetTransaction(val id: Long) : Transaction<Invalidat
         return result
     }
 
+
     class TransactionResult {
 
         val invalidated = mutableListOf<TemporaryTarget>()

@@ -204,7 +204,7 @@ class IobCobCalculatorPlugin @Inject constructor(
         val cacheHit = iobTable[time]
 
         if (time < now && cacheHit != null) {
-            //og.debug(">>> calculateFromTreatmentsAndTemps Cache hit " + new Date(time).toLocaleString());
+            //log.debug(">>> calculateFromTreatmentsAndTemps Cache hit " + new Date(time).toLocaleString());
             return cacheHit
         } // else log.debug(">>> calculateFromTreatmentsAndTemps Cache miss " + new Date(time).toLocaleString());
 

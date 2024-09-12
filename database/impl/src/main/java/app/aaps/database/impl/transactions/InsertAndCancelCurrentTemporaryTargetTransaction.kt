@@ -23,6 +23,7 @@ class InsertAndCancelCurrentTemporaryTargetTransaction(
         return result
     }
 
+
     class TransactionResult {
 
         val inserted = mutableListOf<TemporaryTarget>()

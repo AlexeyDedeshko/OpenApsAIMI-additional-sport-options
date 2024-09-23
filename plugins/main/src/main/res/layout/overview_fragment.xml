@@ -170,15 +170,15 @@
                 style="@style/Widget.MaterialComponents.CardView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center"
                 android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
                 android:layout_marginTop="4dp"
+                android:layout_marginEnd="4dp"
                 android:layout_marginBottom="4dp"
                 app:cardCornerRadius="4dp"
-                app:contentPadding="2dp"
                 app:cardElevation="2dp"
                 app:cardUseCompatPadding="false"
-                android:layout_gravity="center">
+                app:contentPadding="2dp">
 
                 <include
                     android:id="@+id/graphs_layout"

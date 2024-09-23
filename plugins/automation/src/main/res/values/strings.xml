@@ -116,7 +116,7 @@
     <string name="add_automation">Add rule</string>
     <string name="stop_processing">Stop processing</string>
 
-    <!--    Reminders-->
+    <!-- Reminders -->
     <string name="time_to_eat">Time to eat!\nRun Bolus wizard and do calculation again.</string>
     <string name="time_to_bolus">Time to bolus!\nRun Bolus wizard and do calculation again.</string>
     <string name="error_setting_reminder">Error while setting future alarm</string>

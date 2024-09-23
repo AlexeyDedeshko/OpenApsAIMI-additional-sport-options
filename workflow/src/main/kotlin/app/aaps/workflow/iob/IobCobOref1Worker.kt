@@ -95,7 +95,7 @@ class IobCobOref1Worker(
 
             val prevDataTime = ads.roundUpTime(bucketedData[bucketedData.size - 3].timestamp)
             aapsLogger.debug(LTag.AUTOSENS) { "Prev data time: " + dateUtil.dateAndTimeString(prevDataTime) }
-            var previous = autosensDataTable[prevDataTime]
+            var previousAutosensData = autosensDataTable[prevDataTime]
 
             // start from oldest to be able sub cob
             for (i in bucketedData.size - 4 downTo 0) {
@@ -106,14 +106,15 @@ class IobCobOref1Worker(
                     return Result.failure(workDataOf("Error" to "Aborting calculation thread (trigger): ${data.reason}"))
                 }
 
-                // check if data already exists
+                // check if data is greater as current time
                 var bgTime = bucketedData[i].timestamp
                 bgTime = ads.roundUpTime(bgTime)
                 if (bgTime > ads.roundUpTime(dateUtil.now())) continue
 
+                // check if data already exists
                 var existing: AutosensData?
                 if (autosensDataTable[bgTime].also { existing = it } != null) {
-                    previous = existing
+                    previousAutosensData = existing
                     continue
                 }
 
@@ -125,11 +126,11 @@ class IobCobOref1Worker(
 
                 aapsLogger.debug(LTag.AUTOSENS, "Processing calculation thread: ${data.reason} ($i/${bucketedData.size})")
 
-                val sens = profile.getIsfMgdl(bgTime)
+                val sens = profile.getIsfMgdl(bgTime) // ISF
                 val autosensData = instantiator.provideAutosensDataObject()
-                autosensData.time = bgTime
-                if (previous != null) {
-                    autosensData.activeCarbsList = previous.cloneCarbsList()
+                autosensData.time = bgTime // время измерения ГК
+                if (previousAutosensData != null) {
+                    autosensData.activeCarbsList = previousAutosensData.cloneCarbsList()
                 } else {
                     autosensData.activeCarbsList = ArrayList()
                 }
@@ -137,13 +138,14 @@ class IobCobOref1Worker(
                 //console.error(bgTime , bucketed_data[i].glucose);
                 var avgDelta: Double
                 var delta: Double
+
                 val bg: Double = bucketedData[i].recalculated
                 if (bg < 39 || bucketedData[i + 3].recalculated < 39) {
                     aapsLogger.error("! value < 39")
                     continue
                 }
-
                 autosensData.bg = bg
+
                 delta = bg - bucketedData[i + 1].recalculated
                 avgDelta = (bg - bucketedData[i + 3].recalculated) / 3
 
@@ -155,7 +157,8 @@ class IobCobOref1Worker(
                 var slopeFromMinDeviation = 999.0
 
                 // https://github.com/openaps/oref0/blob/master/lib/determine-basal/cob-autosens.js#L169
-                if (i < bucketedData.size - 16) { // we need 1h of data to calculate minDeviationSlope
+                if (i < bucketedData.size - 16) {
+                    // we need 1h of data to calculate minDeviationSlope
                     var maxDeviation = 0.0
                     var minDeviation = 999.0
                     val hourAgo = bgTime + 10 * 1000 - 60 * 60 * 1000L
@@ -225,7 +228,7 @@ class IobCobOref1Worker(
                 }
 
                 // if we are absorbing carbs
-                if (previous != null && previous.cob > 0) {
+                if (previousAutosensData != null && previousAutosensData.cob > 0) {
                     // calculate sum of min carb impact from all active treatments
                     val totalMinCarbsImpact = sp.getDouble(app.aaps.core.utils.R.string.key_openapsama_min_5m_carbimpact, SMBDefaults.min_5m_carbimpact)
 
@@ -235,14 +238,14 @@ class IobCobOref1Worker(
                     if (ci != deviation) autosensData.failOverToMinAbsorptionRate = true
                     autosensData.absorbed = ci * profile.getIc(bgTime) / sens
                     // and add that to the running total carbsAbsorbed
-                    autosensData.cob = max(previous.cob - autosensData.absorbed, 0.0)
-                    autosensData.mealCarbs = previous.mealCarbs
+                    autosensData.cob = max(previousAutosensData.cob - autosensData.absorbed, 0.0)
+                    autosensData.mealCarbs = previousAutosensData.mealCarbs
                     autosensData.deductAbsorbedCarbs()
                     autosensData.usedMinCarbsImpact = totalMinCarbsImpact
-                    autosensData.absorbing = previous.absorbing
-                    autosensData.mealStartCounter = previous.mealStartCounter
-                    autosensData.type = previous.type
-                    autosensData.uam = previous.uam
+                    autosensData.absorbing = previousAutosensData.absorbing
+                    autosensData.mealStartCounter = previousAutosensData.mealStartCounter
+                    autosensData.type = previousAutosensData.type
+                    autosensData.uam = previousAutosensData.uam
                 }
 
                 val isAAPSOrWeighted = activePlugin.activeSensitivity.isMinCarbsAbsorptionDynamic
@@ -344,7 +347,7 @@ class IobCobOref1Worker(
                 if (min in 0..4 && hours % 2 == 0) {
                     autosensData.extraDeviation.add(0.0)
                 }
-                previous = autosensData
+                previousAutosensData = autosensData
 
                 if (bgTime < dateUtil.now()) {
                     autosensDataTable.put(bgTime, autosensData)

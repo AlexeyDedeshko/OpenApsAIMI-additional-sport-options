@@ -172,16 +172,32 @@ class IobCobCalculatorPlugin @Inject constructor(
 
     private fun oldestDataAvailable(): Long {
         var oldestTime = System.currentTimeMillis()
+
         val oldestTempBasal = repository.getOldestTemporaryBasalRecord()
-        if (oldestTempBasal != null) oldestTime = min(oldestTime, oldestTempBasal.timestamp)
+        if (oldestTempBasal != null) {
+            oldestTime = min(oldestTime, oldestTempBasal.timestamp)
+        }
+
         val oldestExtendedBolus = repository.getOldestExtendedBolusRecord()
-        if (oldestExtendedBolus != null) oldestTime = min(oldestTime, oldestExtendedBolus.timestamp)
+        if (oldestExtendedBolus != null) {
+            oldestTime = min(oldestTime, oldestExtendedBolus.timestamp)
+        }
+
         val oldestBolus = repository.getOldestBolusRecord()
-        if (oldestBolus != null) oldestTime = min(oldestTime, oldestBolus.timestamp)
+        if (oldestBolus != null) {
+            oldestTime = min(oldestTime, oldestBolus.timestamp)
+        }
+
         val oldestCarbs = repository.getOldestCarbsRecord()
-        if (oldestCarbs != null) oldestTime = min(oldestTime, oldestCarbs.timestamp)
+        if (oldestCarbs != null) {
+            oldestTime = min(oldestTime, oldestCarbs.timestamp)
+        }
+
         val oldestPs = repository.getOldestEffectiveProfileSwitchRecord()
-        if (oldestPs != null) oldestTime = min(oldestTime, oldestPs.timestamp)
+        if (oldestPs != null) {
+            oldestTime = min(oldestTime, oldestPs.timestamp)
+        }
+
         oldestTime -= 15 * 60 * 1000L // allow 15 min before
         return oldestTime
     }
@@ -191,10 +207,18 @@ class IobCobCalculatorPlugin @Inject constructor(
         val dia = profile?.dia ?: Constants.defaultDIA
         val oldestDataAvailable = oldestDataAvailable()
         val getBGDataFrom: Long
+
         if (limitDataToOldestAvailable) {
             getBGDataFrom = max(oldestDataAvailable, (from - T.hours(1).msecs() * (24 + dia)).toLong())
-            if (getBGDataFrom == oldestDataAvailable) aapsLogger.debug(LTag.AUTOSENS, "Limiting data to oldest available temps: " + dateUtil.dateAndTimeAndSecondsString(oldestDataAvailable))
-        } else getBGDataFrom = (from - T.hours(1).msecs() * (24 + dia)).toLong()
+
+            if (getBGDataFrom == oldestDataAvailable) {
+                aapsLogger.debug(LTag.AUTOSENS, "Limiting data to oldest available temps: " + dateUtil.dateAndTimeAndSecondsString(oldestDataAvailable))
+            }
+
+        } else {
+            getBGDataFrom = (from - T.hours(1).msecs() * (24 + dia)).toLong()
+        }
+
         return getBGDataFrom
     }
 

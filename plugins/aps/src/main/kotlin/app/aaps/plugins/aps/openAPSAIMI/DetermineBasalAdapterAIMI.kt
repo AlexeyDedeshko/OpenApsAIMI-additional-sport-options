@@ -372,27 +372,39 @@ class DetermineBasalAdapterAIMI internal constructor(private val injector: HasAn
 
     private fun calculateAdjustedDelayFactor(bg: Float, recentSteps180Minutes: Int): Float {
         // Seuil pour une activité physique significative
+        // Порог значимой физической активности
         val stepActivityThreshold = 1500
 
         // Seuil à partir duquel l'efficacité de l'insuline commence à diminuer
+        // Порог, при котором эффективность инсулина начинает снижаться
         val insulinSensitivityDecreaseThreshold = 1.5 * normalBgThreshold
 
         // Déterminer si une activité physique significative a eu lieu
+        // Определите, произошла ли значительная физическая активность
         val increasedPhysicalActivity = recentSteps180Minutes > stepActivityThreshold
 
         // Calculer le facteur de base avant de prendre en compte l'activité physique
+        // Рассчитайте базовый коэффициент, прежде чем учитывать физическую активность.
         val baseFactor = when {
             bg <= normalBgThreshold -> 1f
             bg <= insulinSensitivityDecreaseThreshold -> 1f - ((bg - normalBgThreshold) / (insulinSensitivityDecreaseThreshold - normalBgThreshold))
             else -> 0.5f // Arbitraire, à ajuster en fonction de la physiologie individuelle
+                         // Произвольный, регулируется в соответствии с индивидуальной физиологией.
         }
 
         // Si une activité physique est détectée (soit par les étapes, soit par la fréquence cardiaque),
         // nous ajustons le facteur de retard pour augmenter la sensibilité à l'insuline.
+        // Если обнаружена физическая активность (по шагам или по частоте пульса),
+        // мы корректируем коэффициент задержки, чтобы повысить чувствительность к инсулину.
         return if (increasedPhysicalActivity) {
-            (baseFactor.toFloat() * 0.8f).coerceAtLeast(0.5f)  // Ici, nous utilisons 0.8f pour indiquer qu'il s'agit d'un Float
+            // Ici, nous utilisons 0.8f pour indiquer qu'il s'agit d'un Float
+            // Здесь мы используем 0,8f, чтобы указать, что это число с плавающей запятой.
+            (baseFactor.toFloat() * 0.8f).coerceAtLeast(0.5f)
+
         } else {
-            baseFactor.toFloat()  // Cela devrait déjà être un Float
+            // Cela devrait déjà être un Float
+            // Это уже должно быть Float
+            baseFactor.toFloat()
         }
     }
 
@@ -405,26 +417,33 @@ class DetermineBasalAdapterAIMI internal constructor(private val injector: HasAn
         recentSteps180Min: Int
     ): Float {
         // Calculer l'effet initial de l'insuline
+        // Рассчитать первоначальный эффект инсулина
         var insulinEffect = iob * variableSensitivity
 
         // Si des glucides sont présents, nous pourrions vouloir ajuster l'effet de l'insuline pour tenir compte de l'absorption des glucides.
+        // Если присутствуют углеводы, мы можем захотеть скорректировать действие инсулина с учетом поглощения углеводов.
         if (cob > 0) {
             // Ajustement hypothétique basé sur la présence de glucides. Ce facteur doit être déterminé par des tests/logique métier.
+            // Гипотетическая корректировка, основанная на наличии углеводов. Этот фактор должен определяться путем тестирования/бизнес-логики.
             insulinEffect *= 0.9f
         }
 
         // Calculer le facteur de retard ajusté en fonction de l'activité physique
+        // Рассчитайте коэффициент задержки с поправкой на физическую активность.
         val adjustedDelayFactor = calculateAdjustedDelayFactor(
             normalBgThreshold,
             recentSteps180Min
         )
 
         // Appliquer le facteur de retard ajusté à l'effet de l'insuline
+        // Примените коэффициент задержки, скорректированный с учетом эффекта инсулина.
         insulinEffect *= adjustedDelayFactor
 
         // En fonction de la glycémie actuelle, nous pourrions vouloir faire d'autres ajustements.
+        // В зависимости от текущего уровня сахара в крови мы можем внести дополнительные корректировки.
         if (bg > normalBgThreshold) {
             // Si la glycémie est élevée, l'effet de l'insuline peut être différent. Ajustez selon la logique métier/test.
+            // Если уровень сахара в крови повышен, действие инсулина может быть иным. Отрегулируйте в соответствии с бизнес-логикой/логикой тестирования.
             insulinEffect *= 1.1f
         }
 
@@ -436,15 +455,17 @@ class DetermineBasalAdapterAIMI internal constructor(private val injector: HasAn
         iob: Float,  // Insuline active (IOB)
         variableSensitivity: Float,  // Facteur de sensibilité à l'insuline (ISF)
         cob: Float,  // Glucides à bord (COB)
-        CI: Float,  // Rapport insuline/glucides (ICR)
+        CI: Float,  // Rapport insuline/glucides (ICR) // Соотношение инсулин/углеводы (ICR)
     ): Float {
-        // Temps moyen d'absorption des glucides en heures
+        // Temps moyen d'absorption des glucides en heures // Среднее время усвоения углеводов в часах
         val averageCarbAbsorptionTime = 2.5f
 
         // Convertir le temps d'absorption en minutes pour le calcul
+        // Преобразуйте время поглощения в минуты для расчета.
         val absorptionTimeInMinutes = averageCarbAbsorptionTime * 60
 
         // Calculer l'effet de l'insuline sur la baisse de la glycémie
+        // Рассчитайте влияние инсулина на снижение уровня сахара в крови.
         val insulinEffect = calculateInsulinEffect(
             bg,
             iob,
@@ -456,9 +477,11 @@ class DetermineBasalAdapterAIMI internal constructor(private val injector: HasAn
 
         // Calculer l'effet des glucides sur l'augmentation de la glycémie
         // en supposant que 'absorptionTime' représente la période de temps pendant laquelle les glucides sont absorbés
+        // Рассчитайте влияние углеводов на повышение уровня сахара в крови, предполагая,
+        // что «Время поглощения» представляет собой период времени, в течение которого углеводы всасываются.
         val carbEffect = (cob / absorptionTimeInMinutes) * CI
 
-        // Prédire la glycémie future
+        // Prédire la glycémie future // Прогнозирование будущего уровня сахара в крови
         val futureBg = bg - insulinEffect + carbEffect
 
         return futureBg

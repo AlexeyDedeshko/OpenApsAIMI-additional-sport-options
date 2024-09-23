@@ -63,6 +63,7 @@ object StepService : SensorEventListener {
     fun getRecentStepCount60Min(): Int {
         return getStepsInLastXMin(12)
     }
+
     fun getRecentStepCount180Min(): Int {
         return getStepsInLastXMin(34)
     }
@@ -77,5 +78,4 @@ object StepService : SensorEventListener {
         }
         return stepCount
     }
-
 }

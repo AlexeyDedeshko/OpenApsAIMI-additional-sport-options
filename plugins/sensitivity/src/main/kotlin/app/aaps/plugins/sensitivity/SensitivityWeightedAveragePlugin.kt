@@ -36,6 +36,7 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
     private val profileFunction: ProfileFunction,
     private val dateUtil: DateUtil,
     private val repository: AppRepository
+
 ) : AbstractSensitivityPlugin(
     PluginDescription()
         .mainType(PluginType.SENSITIVITY)
@@ -54,25 +55,30 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
         if (age == rh.gs(app.aaps.core.utils.R.string.key_teenage)) defaultHours = 4
         if (age == rh.gs(app.aaps.core.utils.R.string.key_child)) defaultHours = 4
         val hoursForDetection = sp.getInt(app.aaps.core.utils.R.string.key_openapsama_autosens_period, defaultHours)
+
         if (ads.autosensDataTable.size() < 4) {
             aapsLogger.debug(LTag.AUTOSENS, "No autosens data available. lastDataTime=" + ads.lastDataTime(dateUtil))
             return AutosensResult()
         }
+
         val current = ads.getAutosensDataAtTime(toTime) // this is running inside lock already
         if (current == null) {
             aapsLogger.debug(LTag.AUTOSENS, "No autosens data available. toTime: " + dateUtil.dateAndTimeString(toTime) + " lastDataTime: " + ads.lastDataTime(dateUtil))
             return AutosensResult()
         }
+
         val profile = profileFunction.getProfile()
         if (profile == null) {
             aapsLogger.debug(LTag.AUTOSENS, "No profile available")
             return AutosensResult()
         }
+
         val siteChanges = repository.getTherapyEventDataFromTime(fromTime, TherapyEvent.Type.CANNULA_CHANGE, true).blockingGet()
         val profileSwitches = repository.getProfileSwitchDataFromTime(fromTime, true).blockingGet()
         var pastSensitivity = ""
         var index = 0
         val data = LongSparseArray<Double>()
+
         while (index < ads.autosensDataTable.size()) {
             val autosensData = ads.autosensDataTable.valueAt(index)
             if (autosensData.time < fromTime) {
@@ -99,30 +105,41 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
                 data.clear()
                 pastSensitivity += "(PROFILESWITCH)"
             }
+
             var deviation = autosensData.deviation
 
             //set positive deviations to zero if bg < 80
-            if (autosensData.bg < 80 && deviation > 0) deviation = 0.0
+            if (autosensData.bg < 80 && deviation > 0) {
+                deviation = 0.0
+            }
 
             //data.append(autosensData.time);
             val reverseWeight = (toTime - autosensData.time) / (5 * 60 * 1000L)
-            if (autosensData.validDeviation) data.append(reverseWeight, deviation)
+            if (autosensData.validDeviation) {
+                data.append(reverseWeight, deviation)
+            }
+
             pastSensitivity += autosensData.pastSensitivity
+
             val secondsFromMidnight = MidnightUtils.secondsFromMidnight(autosensData.time)
             if (secondsFromMidnight % 3600 < 2.5 * 60 || secondsFromMidnight % 3600 > 57.5 * 60) {
                 pastSensitivity += "(" + (secondsFromMidnight / 3600.0).roundToInt() + ")"
             }
+
             index++
         }
+
         if (data.size() == 0) {
             aapsLogger.debug(LTag.AUTOSENS, "Data size: " + data.size() + " fromTime: " + dateUtil.dateAndTimeString(fromTime) + " toTime: " + dateUtil.dateAndTimeString(toTime))
             return AutosensResult()
         } else {
             aapsLogger.debug(LTag.AUTOSENS, "Data size: " + data.size() + " fromTime: " + dateUtil.dateAndTimeString(fromTime) + " toTime: " + dateUtil.dateAndTimeString(toTime))
         }
+
         var weightedSum = 0.0
         var weights = 0.0
         val highestWeight = data.keyAt(data.size() - 1)
+
         for (i in 0 until data.size()) {
             val reversedWeight = data.keyAt(i)
             val value = data.valueAt(i)
@@ -130,32 +147,44 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
             weights += weight
             weightedSum += weight * value
         }
+
         if (weights == 0.0) {
             return AutosensResult()
         }
+
         val sens = profile.getIsfMgdl()
         val ratioLimit = ""
         val sensResult: String
+
         aapsLogger.debug(LTag.AUTOSENS, "Records: $index   $pastSensitivity")
+
         val average = weightedSum / weights
         val basalOff = average * (60 / 5.0) / sens
         val ratio = 1 + basalOff / profile.getMaxDailyBasal()
+
         sensResult = when {
             average < 0 -> "Excess insulin sensitivity detected"
             average > 0 -> "Excess insulin resistance detected"
             else        -> "Sensitivity normal"
         }
         aapsLogger.debug(LTag.AUTOSENS, sensResult)
+
         val output = fillResult(
-            ratio, current.cob, pastSensitivity, ratioLimit,
-            sensResult, data.size()
+            ratio,
+            current.cob,
+            pastSensitivity,
+            ratioLimit,
+            sensResult,
+            data.size()
         )
+
         aapsLogger.debug(
             LTag.AUTOSENS, "Sensitivity to: "
                 + dateUtil.dateAndTimeString(toTime) +
                 " ratio: " + output.ratio
                 + " mealCOB: " + current.cob
         )
+
         return output
     }
 
@@ -173,9 +202,11 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
             c.put(rh.gs(app.aaps.core.utils.R.string.key_openapsama_autosens_period), sp.getInt(app.aaps.core.utils.R.string.key_openapsama_autosens_period, 24))
             c.put(rh.gs(app.aaps.core.utils.R.string.key_openapsama_autosens_max), sp.getDouble(app.aaps.core.utils.R.string.key_openapsama_autosens_max, 1.2))
             c.put(rh.gs(app.aaps.core.utils.R.string.key_openapsama_autosens_min), sp.getDouble(app.aaps.core.utils.R.string.key_openapsama_autosens_min, 0.7))
+
         } catch (e: JSONException) {
             e.printStackTrace()
         }
+
         return c
     }
 
@@ -200,6 +231,7 @@ class SensitivityWeightedAveragePlugin @Inject constructor(
                     rh.gs(app.aaps.core.utils.R.string.key_openapsama_autosens_min)
                 )
             )
+
         } catch (e: JSONException) {
             e.printStackTrace()
         }

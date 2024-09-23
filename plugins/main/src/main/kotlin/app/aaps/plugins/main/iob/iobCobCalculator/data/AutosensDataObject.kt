@@ -52,6 +52,7 @@ class AutosensDataObject(injector: HasAndroidInjector) : AutosensData {
     override var type = ""
     override var uam = false
     override var extraDeviation: MutableList<Double> = ArrayList()
+
     private fun fromCarbsInPast(other: AutosensData.CarbsInPast): AutosensData.CarbsInPast =
         AutosensData.CarbsInPast(
             time = other.time,

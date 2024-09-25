@@ -263,14 +263,18 @@ class PrepareIobAutosensGraphDataWorker(
             val autosensData = adsData.getLastAutosensData("GraphData", aapsLogger, dateUtil)
             val lastAutosensResult = autosensData?.autosensResult ?: AutosensResult()
             val isTempTarget = repository.getTemporaryTargetActiveAt(dateUtil.now()).blockingGet() is ValueWrapper.Existing
+
             val iobPrediction: MutableList<DataPointWithLabelInterface> = ArrayList()
             val iobPredictionArray = data.iobCobCalculator.calculateIobArrayForSMB(lastAutosensResult, SMBDefaults.exercise_mode, SMBDefaults.half_basal_exercise_target, isTempTarget)
+
             for (i in iobPredictionArray) {
                 iobPrediction.add(IobTotalDataPoint(i).setColor(rh.gac(ctx, app.aaps.core.ui.R.attr.iobPredASColor)))
                 data.overviewData.maxIobValueFound = max(data.overviewData.maxIobValueFound, abs(i.iob))
             }
+
             data.overviewData.iobPredictions1Series = PointsWithLabelGraphSeries(Array(iobPrediction.size) { i -> iobPrediction[i] })
             aapsLogger.debug(LTag.AUTOSENS, "IOB prediction for AS=" + decimalFormatter.to2Decimal(lastAutosensResult.ratio) + ": " + data.iobCobCalculator.iobArrayToString(iobPredictionArray))
+
         } else {
             data.overviewData.iobPredictions1Series = PointsWithLabelGraphSeries()
         }

@@ -244,6 +244,7 @@ open class APSResultObject @Inject constructor(val injector: HasAndroidInjector)
             }
             return array
         }
+
     override val latestPredictionsTime: Long
         get() {
             var latest: Long = 0

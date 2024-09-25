@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--    General-->
+    <!-- General -->
     <string name="refresh">Refresh</string>
     <string name="error">Error</string>
     <string name="profile_set_ok">Basal profile in pump updated</string>
@@ -189,7 +189,7 @@
     <!--    ProfileFunction-->
     <string name="startprofile">Start profile %1$d%% for %2$d min</string>
 
-    <!--    APSResult-->
+    <!-- APSResult -->
     <string name="cancel_temp">Cancel temp basal</string>
     <string name="let_temp_basal_run">Let temp basal run</string>
     <string name="rate">Rate</string>
@@ -203,7 +203,7 @@
     <!--    Temptarget-->
     <string name="mins">%1$d min</string>
 
-    <!--    Translator-->
+    <!-- Translator -->
     <string name="careportal">Careportal</string>
     <string name="careportal_bgcheck">BG Check</string>
     <string name="careportal_mbg">Manual BG or Calibration</string>
@@ -658,6 +658,7 @@
     <string name="format_insulin_units">%1$.2f U</string>
 
     <!-- Sport Options -->
+    <string name="exercise_mode">Exercise Mode</string>
     <string name="sport_duty_options_label">Sport Duty Options</string>
     <string name="duty_option_none">None</string>
     <string name="duty_option_light">Light</string>

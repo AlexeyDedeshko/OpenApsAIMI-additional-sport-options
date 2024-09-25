@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.util.Log
 import android.view.Menu
 import android.view.View
 import android.widget.ImageButton
@@ -191,10 +192,14 @@ class OverviewMenusImpl @Inject constructor(
 
         chartButton.setOnClickListener { v: View ->
             val predictionsAvailable: Boolean = when {
-                config.APS      -> loop.lastRun?.request?.hasPredictions ?: false
+                config.APS      -> {
+                    Log.d("OverviewMenusImpl", "hasPredictions: ${loop.lastRun?.request?.hasPredictions}")
+                    loop.lastRun?.request?.hasPredictions ?: false
+                }
                 config.NSCLIENT -> true
                 else            -> false
             }
+            Log.d("OverviewMenusImpl", "predictionsAvailable = $predictionsAvailable, config.Aps = ${config.APS}, hasPredictions: ${loop.lastRun?.request?.hasPredictions}, config.NSCLIENT = ${config.NSCLIENT}")
             val popup = PopupMenu(v.context, v)
 
             popup.menu.addSubMenu(Menu.NONE, SCALE_ID, Menu.NONE, rh.gs(R.string.graph_scale)).also {

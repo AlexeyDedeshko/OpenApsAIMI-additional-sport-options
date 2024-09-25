@@ -30,6 +30,11 @@
 
             <SwitchPreference
                 android:defaultValue="true"
+                android:key="@string/key_show_exercise_mode_button"
+                android:title="@string/exercise_mode" />
+
+            <SwitchPreference
+                android:defaultValue="true"
                 android:key="@string/key_show_insulin_button"
                 android:title="@string/configbuilder_insulin" />
 

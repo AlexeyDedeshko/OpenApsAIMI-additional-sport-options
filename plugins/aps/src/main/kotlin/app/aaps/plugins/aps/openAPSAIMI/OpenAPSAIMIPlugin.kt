@@ -1,4 +1,5 @@
 package app.aaps.plugins.aps.openAPSAIMI
+
 import android.content.Context
 import app.aaps.annotations.OpenForTesting
 import app.aaps.core.interfaces.aps.DetermineBasalAdapter
@@ -26,10 +27,10 @@ import app.aaps.plugins.aps.utils.ScriptReader
 import dagger.android.HasAndroidInjector
 import javax.inject.Inject
 import javax.inject.Singleton
+
 @OpenForTesting
 @Singleton
-class OpenAPSAIMIPlugin  @Inject constructor(
-
+class OpenAPSAIMIPlugin @Inject constructor(
     injector: HasAndroidInjector,
     aapsLogger: AAPSLogger,
     rxBus: RxBus,

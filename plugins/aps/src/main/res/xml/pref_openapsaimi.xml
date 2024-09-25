@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:validate="http://schemas.android.com/apk/res-auto">
 
@@ -57,7 +58,6 @@
             validate:floatmaxNumber="100"
             validate:floatminNumber="0"
             validate:testType="floatNumericRange" />
-
 
         <app.aaps.core.validators.ValidatingEditTextPreference
             android:defaultValue="50"
@@ -158,9 +158,7 @@
                 validate:floatmaxNumber="300"
                 validate:floatminNumber="1"
                 validate:testType="floatNumericRange" />
-
-
         </androidx.preference.PreferenceScreen>
-
     </PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>

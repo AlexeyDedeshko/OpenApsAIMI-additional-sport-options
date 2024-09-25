@@ -232,6 +232,11 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
         binding.buttonsLayout.quickWizardButton.setOnLongClickListener(this)
         binding.infoLayout.apsMode.setOnClickListener(this)
         binding.infoLayout.apsMode.setOnLongClickListener(this)
+
+        // exercise mode
+        binding.buttonsLayout.exerciseModeButton.setOnClickListener {
+            uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.EXERCISE, app.aaps.core.ui.R.string.careportal_exercise)
+        }
     }
 
     @Synchronized
@@ -581,6 +586,8 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
                 && sp.getBoolean(R.string.key_show_wizard_button, true)).toVisibility()
             binding.buttonsLayout.insulinButton.visibility = (!loop.isDisconnected && pump.isInitialized() && !pump.isSuspended() && profile != null
                 && sp.getBoolean(R.string.key_show_insulin_button, true)).toVisibility()
+            binding.buttonsLayout.exerciseModeButton.visibility = (!loop.isDisconnected && pump.isInitialized() && !pump.isSuspended() && profile != null
+                && sp.getBoolean(R.string.key_show_exercise_mode_button, true)).toVisibility()
 
             // **** Calibration & CGM buttons ****
             val xDripIsBgSource = xDripSource.isEnabled()

@@ -2,8 +2,8 @@ import org.gradle.api.JavaVersion
 
 object Versions {
 
-    const val appVersion = "3.2.0.2-dev-OpenApsAIMI"
-    const val versionCode = 1500
+    const val appVersion = "3.2.0.2-dev-OpenApsAIMI sport-options"
+    const val versionCode = 1501
 
     const val ndkVersion = "21.1.6352462"
 

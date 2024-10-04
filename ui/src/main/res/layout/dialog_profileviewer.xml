@@ -38,7 +38,6 @@
                 android:layout_toEndOf="@id/header_icon"
                 android:textAlignment="center"
                 android:textAppearance="?android:attr/textAppearanceLarge" />
-
         </RelativeLayout>
 
         <LinearLayout
@@ -105,7 +104,6 @@
                 android:layout_weight="1"
                 android:textAlignment="viewStart"
                 android:textSize="14sp" />
-
         </LinearLayout>
 
         <View
@@ -152,7 +150,6 @@
                 android:textAlignment="viewStart"
                 android:textSize="14sp"
                 tools:text="mmol" />
-
         </LinearLayout>
 
         <View
@@ -199,7 +196,6 @@
                 android:textAlignment="viewStart"
                 android:textSize="14sp"
                 tools:text="6.50 h" />
-
         </LinearLayout>
 
         <View
@@ -246,7 +242,6 @@
                 android:textAlignment="viewStart"
                 android:textSize="14sp"
                 tools:text="00:00 13.8 g/U" />
-
         </LinearLayout>
 
         <app.aaps.core.main.graph.IcProfileGraph
@@ -298,7 +293,6 @@
                 android:layout_weight="1"
                 android:textAlignment="viewStart"
                 android:textSize="14sp" />
-
         </LinearLayout>
 
         <app.aaps.core.main.graph.IsfProfileGraph
@@ -350,7 +344,6 @@
                 android:layout_weight="1"
                 android:textAlignment="viewStart"
                 android:textSize="14sp" />
-
         </LinearLayout>
 
         <LinearLayout
@@ -385,7 +378,6 @@
                 android:layout_weight="1"
                 android:textAlignment="viewStart"
                 android:textSize="14sp" />
-
         </LinearLayout>
 
         <app.aaps.core.main.graph.BasalProfileGraph
@@ -437,7 +429,6 @@
                 android:layout_weight="1"
                 android:textAlignment="viewStart"
                 android:textSize="14sp" />
-
         </LinearLayout>
 
         <app.aaps.core.main.graph.TargetBgProfileGraph

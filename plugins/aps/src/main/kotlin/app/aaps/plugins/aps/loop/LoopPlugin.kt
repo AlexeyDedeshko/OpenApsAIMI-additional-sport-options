@@ -763,7 +763,7 @@ class LoopPlugin @Inject constructor(
                 enacted?.put("smb", lastRun.tbrSetByPump?.bolusDelivered)
             }
 
-        } else { // sargius, уже прошло больше 5 минут после lastRun, нужно делать новые рассчеты
+        } else { // уже прошло больше 5 минут после lastRun, нужно делать новые рассчеты
             val calcIob = iobCobCalculator.calculateIobArrayInDia(profile)
             if (calcIob.isNotEmpty()) {
                 iob = calcIob[0].json(dateUtil)

@@ -31,5 +31,6 @@ dependencies {
 
     //RxBus
     api(Libs.Rx.rxKotlin)
+    implementation(project(":database:impl"))
     testImplementation(Libs.Rx.rxAndroid)
 }

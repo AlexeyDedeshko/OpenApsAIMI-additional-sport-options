@@ -33,6 +33,7 @@ class PrepareTemporaryTargetDataWorker(
     @Inject lateinit var persistenceLayer: PersistenceLayer
     @Inject lateinit var loop: Loop
     @Inject lateinit var rxBus: RxBus
+
     private var ctx: Context
 
     init {
@@ -44,7 +45,6 @@ class PrepareTemporaryTargetDataWorker(
     )
 
     override suspend fun doWorkAndLog(): Result {
-
         val data = dataWorkerStorage.pickupObject(inputData.getLong(DataWorkerStorage.STORE_KEY, -1)) as PrepareTemporaryTargetData?
             ?: return Result.failure(workDataOf("Error" to "missing input data"))
 

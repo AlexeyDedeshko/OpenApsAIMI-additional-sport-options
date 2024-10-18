@@ -49,7 +49,8 @@ class ActionStartTempTarget(injector: HasAndroidInjector) : Action(injector) {
 
     override fun friendlyName(): Int = R.string.starttemptarget
     override fun shortDescription(): String = rh.gs(R.string.starttemptarget) + ": " + tt().friendlyDescription(value.units, rh, profileUtil)
-    @DrawableRes override fun icon(): Int = app.aaps.core.objects.R.drawable.ic_temptarget_high
+    @DrawableRes
+    override fun icon(): Int = app.aaps.core.objects.R.drawable.ic_temptarget_high
 
     override fun doAction(callback: Callback) {
         disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
@@ -85,6 +86,7 @@ class ActionStartTempTarget(injector: HasAndroidInjector) : Action(injector) {
             .put("value", value.value)
             .put("units", value.units.asText)
             .put("durationInMinutes", duration.getMinutes())
+
         return JSONObject()
             .put("type", this.javaClass.simpleName)
             .put("data", data)
@@ -112,6 +114,7 @@ class ActionStartTempTarget(injector: HasAndroidInjector) : Action(injector) {
             value.value >= Constants.MIN_TT_MMOL &&
                 value.value <= Constants.MAX_TT_MMOL &&
                 duration.value > 0
+
         } else { // mg/dL
             value.value >= Constants.MIN_TT_MGDL &&
                 value.value <= Constants.MAX_TT_MGDL &&

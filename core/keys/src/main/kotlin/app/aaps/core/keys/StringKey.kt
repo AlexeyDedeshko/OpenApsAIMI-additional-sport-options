@@ -12,6 +12,7 @@ enum class StringKey(
     override val hideParentScreenIfHidden: Boolean = false,
     val isPassword: Boolean = false,
     val isPin: Boolean = false
+
 ) : StringPreferenceKey {
 
     GeneralUnits("units", "mg/dl"),

@@ -30,6 +30,7 @@ fun TB.convertedToPercent(time: Long, profile: Profile): Int =
     else (rate / profile.getBasal(time) * 100).toInt()
 
 private fun TB.netExtendedRate(profile: Profile) = rate - profile.getBasal(timestamp)
+
 val TB.durationInMinutes
     get() = T.msecs(duration).mins()
 
@@ -56,25 +57,32 @@ fun TB.toStringShort(rh: ResourceHelper): String =
     else rh.gs(app.aaps.core.ui.R.string.formatPercent, rate)
 
 fun TB.iobCalc(time: Long, profile: Profile, insulinInterface: Insulin): IobTotal {
-    if (!isValid) return IobTotal(time)
+    if (!isValid) {
+        return IobTotal(time)
+    }
+
     val result = IobTotal(time)
     val realDuration = getPassedDurationToTimeInMinutes(time)
     var netBasalAmount = 0.0
+
     if (realDuration > 0) {
         var netBasalRate: Double
         val dia = profile.dia
         val diaAgo = time - dia * 60 * 60 * 1000
         val aboutFiveMinIntervals = ceil(realDuration / 5.0).toInt()
         val tempBolusSpacing = realDuration / aboutFiveMinIntervals.toDouble()
+
         for (j in 0L until aboutFiveMinIntervals) {
             // find middle of the interval
             val calcDate = (timestamp + j * tempBolusSpacing * 60 * 1000 + 0.5 * tempBolusSpacing * 60 * 1000).toLong()
             val basalRate = profile.getBasal(calcDate)
+
             netBasalRate = if (isAbsolute) {
                 rate - basalRate
             } else {
                 (rate - 100) / 100.0 * basalRate
             }
+
             if (calcDate > diaAgo && calcDate <= time) {
                 val tempBolusSize = netBasalRate * tempBolusSpacing / 60.0
                 netBasalAmount += tempBolusSize
@@ -93,6 +101,7 @@ fun TB.iobCalc(time: Long, profile: Profile, insulinInterface: Insulin): IobTota
             }
         }
     }
+
     result.netInsulin = netBasalAmount
     return result
 }
@@ -112,29 +121,34 @@ fun TB.iobCalc(
     var netBasalAmount = 0.0
     var sensitivityRatio = lastAutosensResult.ratio
     val normalTarget = 100.0
+
     if (exerciseMode && isTempTarget && profile.getTargetMgdl() >= normalTarget + 5) {
         // w/ target 100, temp target 110 = .89, 120 = 0.8, 140 = 0.67, 160 = .57, and 200 = .44
         // e.g.: Sensitivity ratio set to 0.8 based on temp target of 120; Adjusting basal from 1.65 to 1.35; ISF from 58.9 to 73.6
         val c = halfBasalExerciseTarget - normalTarget
         sensitivityRatio = c / (c + profile.getTargetMgdl() - normalTarget)
     }
+
     if (realDuration > 0) {
         var netBasalRate: Double
         val dia = profile.dia
         val diaAgo = time - dia * 60 * 60 * 1000
         val aboutFiveMinIntervals = ceil(realDuration / 5.0).toInt()
         val tempBolusSpacing = realDuration / aboutFiveMinIntervals.toDouble()
+
         for (j in 0L until aboutFiveMinIntervals) {
             // find middle of the interval
             val calcDate = (timestamp + j * tempBolusSpacing * 60 * 1000 + 0.5 * tempBolusSpacing * 60 * 1000).toLong()
             var basalRate = profile.getBasal(calcDate)
             basalRate *= sensitivityRatio
+
             netBasalRate = if (isAbsolute) {
                 rate - basalRate
             } else {
                 val abs: Double = rate / 100.0 * profile.getBasal(calcDate)
                 abs - basalRate
             }
+
             if (calcDate > diaAgo && calcDate <= time) {
                 val tempBolusSize = netBasalRate * tempBolusSpacing / 60.0
                 netBasalAmount += tempBolusSize
@@ -143,16 +157,20 @@ fun TB.iobCalc(
                     amount = tempBolusSize,
                     type = BS.Type.NORMAL
                 )
+
                 val aIOB = insulinInterface.iobCalcForTreatment(tempBolusPart, time, dia)
+
                 result.basaliob += aIOB.iobContrib
                 result.activity += aIOB.activityContrib
                 result.netbasalinsulin += tempBolusPart.amount
+
                 if (tempBolusPart.amount > 0) {
                     result.hightempinsulin += tempBolusPart.amount
                 }
             }
         }
     }
+
     result.netInsulin = netBasalAmount
     return result
 }

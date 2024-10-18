@@ -5,8 +5,8 @@ import app.aaps.core.interfaces.overview.OverviewData
 import app.aaps.core.interfaces.rx.events.Event
 
 interface CalculationWorkflow {
-    companion object {
 
+    companion object {
         const val MAIN_CALCULATION = "calculation"
         const val HISTORY_CALCULATION = "history_calculation"
         const val JOB = "job"

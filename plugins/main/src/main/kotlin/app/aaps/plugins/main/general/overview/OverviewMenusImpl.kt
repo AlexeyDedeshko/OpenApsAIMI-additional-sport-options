@@ -59,24 +59,124 @@ class OverviewMenusImpl @Inject constructor(
         val enabledByDefault: Boolean = false
     ) {
 
-        PRE(R.string.overview_show_predictions, app.aaps.core.ui.R.attr.predictionColor, app.aaps.core.ui.R.attr.menuTextColor, primary = true, secondary = false, shortnameId = R.string.prediction_shortname, enabledByDefault = true),
-        TREAT(R.string.overview_show_treatments, app.aaps.core.ui.R.attr.cobColor, app.aaps.core.ui.R.attr.menuTextColor, primary = true, secondary = false, shortnameId = R.string.treatments_shortname, enabledByDefault = true),
-        BAS(R.string.overview_show_basals, app.aaps.core.ui.R.attr.basal, app.aaps.core.ui.R.attr.menuTextColor, primary = true, secondary = false, shortnameId = R.string.basal_shortname, enabledByDefault = true),
-        ABS(R.string.overview_show_abs_insulin, app.aaps.core.ui.R.attr.iobColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.abs_insulin_shortname),
-        IOB(R.string.overview_show_iob, app.aaps.core.ui.R.attr.iobColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = app.aaps.core.ui.R.string.iob),
-        COB(R.string.overview_show_cob, app.aaps.core.ui.R.attr.cobColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = app.aaps.core.ui.R.string.cob),
-        DEV(R.string.overview_show_deviations, app.aaps.core.ui.R.attr.bgiColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.deviation_shortname),
-        BGI(R.string.overview_show_bgi, app.aaps.core.ui.R.attr.bgiColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.bgi_shortname),
-        SEN(R.string.overview_show_sensitivity, app.aaps.core.ui.R.attr.ratioColor, app.aaps.core.ui.R.attr.menuTextColorInverse, primary = false, secondary = true, shortnameId = R.string.sensitivity_shortname),
-        VAR_SENS(R.string.overview_show_variable_sens, app.aaps.core.ui.R.attr.ratioColor, app.aaps.core.ui.R.attr.menuTextColorInverse, primary = false, secondary = true, shortnameId = R.string.variable_sensitivity_shortname),
-        ACT(R.string.overview_show_activity, app.aaps.core.ui.R.attr.activityColor, app.aaps.core.ui.R.attr.menuTextColor, primary = true, secondary = false, shortnameId = R.string.activity_shortname),
-        DEVSLOPE(R.string.overview_show_deviation_slope, app.aaps.core.ui.R.attr.devSlopePosColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.devslope_shortname),
-        HR(R.string.overview_show_heartRate, app.aaps.core.ui.R.attr.heartRateColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.heartRate_shortname),
-        STEPS(R.string.overview_show_steps, app.aaps.core.ui.R.attr.stepsColor, app.aaps.core.ui.R.attr.menuTextColor, primary = false, secondary = true, shortnameId = R.string.steps_shortname),
+        PRE(
+            R.string.overview_show_predictions,
+            app.aaps.core.ui.R.attr.predictionColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = true,
+            secondary = false,
+            shortnameId = R.string.prediction_shortname,
+            enabledByDefault = true
+        ),
+        TREAT(
+            R.string.overview_show_treatments,
+            app.aaps.core.ui.R.attr.cobColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = true,
+            secondary = false,
+            shortnameId = R.string.treatments_shortname,
+            enabledByDefault = true
+        ),
+        BAS(
+            R.string.overview_show_basals,
+            app.aaps.core.ui.R.attr.basal,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = true,
+            secondary = false,
+            shortnameId = R.string.basal_shortname,
+            enabledByDefault = true
+        ),
+        ABS(
+            R.string.overview_show_abs_insulin,
+            app.aaps.core.ui.R.attr.iobColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.abs_insulin_shortname
+        ),
+        IOB(
+            R.string.overview_show_iob,
+            app.aaps.core.ui.R.attr.iobColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = app.aaps.core.ui.R.string.iob
+        ),
+        COB(
+            R.string.overview_show_cob,
+            app.aaps.core.ui.R.attr.cobColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = app.aaps.core.ui.R.string.cob
+        ),
+        DEV(
+            R.string.overview_show_deviations,
+            app.aaps.core.ui.R.attr.bgiColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.deviation_shortname
+        ),
+        BGI(
+            R.string.overview_show_bgi,
+            app.aaps.core.ui.R.attr.bgiColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.bgi_shortname
+        ),
+        SEN(
+            R.string.overview_show_sensitivity,
+            app.aaps.core.ui.R.attr.ratioColor,
+            app.aaps.core.ui.R.attr.menuTextColorInverse,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.sensitivity_shortname
+        ),
+        VAR_SENS(
+            R.string.overview_show_variable_sens,
+            app.aaps.core.ui.R.attr.ratioColor,
+            app.aaps.core.ui.R.attr.menuTextColorInverse,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.variable_sensitivity_shortname
+        ),
+        ACT(
+            R.string.overview_show_activity,
+            app.aaps.core.ui.R.attr.activityColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = true,
+            secondary = false,
+            shortnameId = R.string.activity_shortname
+        ),
+        DEVSLOPE(
+            R.string.overview_show_deviation_slope,
+            app.aaps.core.ui.R.attr.devSlopePosColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.devslope_shortname
+        ),
+        HR(
+            R.string.overview_show_heartRate,
+            app.aaps.core.ui.R.attr.heartRateColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.heartRate_shortname
+        ),
+        STEPS(
+            R.string.overview_show_steps,
+            app.aaps.core.ui.R.attr.stepsColor,
+            app.aaps.core.ui.R.attr.menuTextColor,
+            primary = false,
+            secondary = true,
+            shortnameId = R.string.steps_shortname
+        ),
     }
 
     companion object {
-
         const val MAX_GRAPHS = 5 // including main
     }
 
@@ -98,19 +198,21 @@ class OverviewMenusImpl @Inject constructor(
 
     override val setting: List<Array<Boolean>>
         @Synchronized get() =
-            if (!preferences.simpleMode) // implicitly does a list copy and update according to number of graphs
+            if (!preferences.simpleMode) { // implicitly does a list copy and update according to number of graphs
                 _setting.toMutableList().also {
                     for (i in it.size - 1 downTo 1) {
                         if (!it[i].any { it })
                             it.removeAt(i)
                     }
                 }
-            else
+
+            } else {
                 listOf(
                     arrayOf(true, true, true, false, false, false, false, false, false, false, false, false, false, false),
                     arrayOf(false, false, false, false, true, false, false, false, false, false, false, false, false, false),
                     arrayOf(false, false, false, false, false, true, false, false, false, false, false, false, false, false)
                 )
+            }
 
     @Synchronized
     private fun storeGraphConfig() {
@@ -130,6 +232,7 @@ class OverviewMenusImpl @Inject constructor(
                 if (s.size != OverviewMenus.CharType.entries.size) {
                     _setting = ArrayList<Array<Boolean>>().also { it.add(Array(OverviewMenus.CharType.entries.size) { CharTypeData.entries[it].enabledByDefault }) }
                 }
+
         } else {
             _setting = ArrayList<Array<Boolean>>().also { it.add(Array(OverviewMenus.CharType.entries.size) { CharTypeData.entries[it].enabledByDefault }) }
         }
@@ -137,12 +240,14 @@ class OverviewMenusImpl @Inject constructor(
 
     override fun setupChartMenu(chartButton: ImageButton, scaleButton: Button) {
         chartButton.setColorFilter(rh.gac(chartButton.context, app.aaps.core.ui.R.attr.defaultTextColor))
+
         scaleButton.setCompoundDrawablesWithIntrinsicBounds(
             null,
             null,
             rh.gd(R.drawable.ic_arrow_drop_down_white_24dp)?.also { it.setTint(rh.gac(scaleButton.context, app.aaps.core.ui.R.attr.defaultTextColor))},
             null
         )
+
         chartButton.setOnClickListener { v: View ->
             var itemRow = 0
             val predictionsAvailable: Boolean = when {
@@ -162,10 +267,13 @@ class OverviewMenusImpl @Inject constructor(
             scrollView.addView(layout)
             layout.columnCount = MAX_GRAPHS
 
-            // instert primary items
+            // insert primary items
             CharTypeData.entries.forEach { m ->
                 var insert = true
-                if (m == CharTypeData.PRE) insert = predictionsAvailable
+                if (m == CharTypeData.PRE) {
+                    insert = predictionsAvailable
+                }
+
                 if (insert && m.primary) {
                     createCustomMenuItemView(v.context, m, itemRow, layout, true)
                     itemRow++
@@ -179,6 +287,7 @@ class OverviewMenusImpl @Inject constructor(
                 it.maxLines = 3                                                     // don't works currently
             }
             layout.addView(textView, layoutParamsLabel)
+
             for (i in 1..(MAX_GRAPHS - 1)) {
                 val item = TextView(v.context).also {
                     it.gravity = Gravity.CENTER
@@ -191,7 +300,7 @@ class OverviewMenusImpl @Inject constructor(
             }
             itemRow++
 
-            // instert secondary items
+            // insert secondary items
             CharTypeData.entries.forEach { m ->
                 var insert = true
                 if (m == CharTypeData.DEVSLOPE) insert = config.isDev()
@@ -200,6 +309,7 @@ class OverviewMenusImpl @Inject constructor(
                     itemRow++
                 }
             }
+
             popup.contentView = horizontalScrollView
             // Permettre la fermeture de la PopupWindow en touchant en dehors
             popup.isOutsideTouchable = true
@@ -215,6 +325,7 @@ class OverviewMenusImpl @Inject constructor(
                 storeGraphConfig()
                 rxBus.send(EventRefreshOverview("OnMenuItemClickListener", now = true))
             }
+
             chartButton.setImageResource(R.drawable.ic_arrow_drop_up_white_24dp)
             popup.showAsDropDown(v)
         }
@@ -230,12 +341,14 @@ class OverviewMenusImpl @Inject constructor(
                 rxBus.send(EventScale(it.itemId))
                 return@setOnMenuItemClickListener true
             }
+
             scaleButton.setCompoundDrawablesWithIntrinsicBounds(
                 null,
                 null,
                 rh.gd(R.drawable.ic_arrow_drop_up_white_24dp)?.also { it.setTint(rh.gac(v.context, app.aaps.core.ui.R.attr.defaultTextColor))},
                 null
             )
+
             popup.setOnDismissListener {
                 scaleButton.setCompoundDrawablesWithIntrinsicBounds(
                     null,
@@ -244,6 +357,7 @@ class OverviewMenusImpl @Inject constructor(
                     null
                 )
             }
+
             popup.show()
             false
         }
@@ -285,14 +399,17 @@ class OverviewMenusImpl @Inject constructor(
                     }
                 }
             }
-            if (m.primary)
+
+            if (m.primary) {
                 _setting[0][m.ordinal] = checkBoxes[0].isChecked
-            else {
+            } else {
                 checkBoxes.forEach { checkBox ->
                     _setting[checkBox.id][m.ordinal] = checkBox.isChecked
                 }
             }
+
             storeGraphConfig()
+
             rxBus.send(EventRefreshOverview("OnMenuItemClickListener", now = true))
         }
 
@@ -314,6 +431,7 @@ class OverviewMenusImpl @Inject constructor(
         for (g in 0 until numOfGraphs) if (settingsCopy[g][type.ordinal]) return g
         return -1
     }
+
     override fun scaleString(rangeToDisplay: Int): String = when (rangeToDisplay) {
         6   -> rh.gs(R.string.graph_scale_6h)
         12  -> rh.gs(R.string.graph_scale_12h)
@@ -321,5 +439,4 @@ class OverviewMenusImpl @Inject constructor(
         24  -> rh.gs(R.string.graph_scale_24h)
         else -> ""
     }
-
 }

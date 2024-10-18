@@ -21,6 +21,7 @@ class PreferencesActivity : DaggerAppCompatActivityWithResult(), PreferenceFragm
 
     private lateinit var binding: ActivityPreferencesBinding
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPreferencesBinding.inflate(layoutInflater)
@@ -34,9 +35,11 @@ class PreferencesActivity : DaggerAppCompatActivityWithResult(), PreferenceFragm
         myPreferenceFragment?.arguments = Bundle().also {
             it.putString(UiInteraction.PLUGIN_NAME, pluginName)
         }
-        if (savedInstanceState == null)
+
+        if (savedInstanceState == null) {
             @Suppress("CommitTransaction")
             supportFragmentManager.beginTransaction().replace(R.id.frame_layout, myPreferenceFragment!!).commit()
+        }
 
         // Add menu items without overriding methods in the Activity
         addMenuProvider(object : MenuProvider {
@@ -63,7 +66,7 @@ class PreferencesActivity : DaggerAppCompatActivityWithResult(), PreferenceFragm
                         true
                     }
 
-                    else              -> false
+                    else -> false
                 }
         })
     }
@@ -74,8 +77,10 @@ class PreferencesActivity : DaggerAppCompatActivityWithResult(), PreferenceFragm
             it.putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, pref.key)
             it.putString(UiInteraction.PLUGIN_NAME, pluginName)
         }
+
         @Suppress("CommitTransaction")
         supportFragmentManager.beginTransaction().replace(R.id.frame_layout, fragment, pref.key).addToBackStack(pref.key).commit()
+
         return true
     }
 }

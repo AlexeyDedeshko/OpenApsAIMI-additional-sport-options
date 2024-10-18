@@ -79,7 +79,6 @@
                         app:drawableStartCompat="@drawable/ic_crosstarget"
                         tools:ignore="HardcodedText" />
                 </androidx.cardview.widget.CardView>
-
             </LinearLayout>
 
             <com.google.android.material.card.MaterialCardView
@@ -99,7 +98,6 @@
                 <include
                     android:id="@+id/info_layout"
                     layout="@layout/overview_info_layout" />
-
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
@@ -119,7 +117,6 @@
                 <include
                     android:id="@+id/status_lights_layout"
                     layout="@layout/overview_statuslights_layout" />
-
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
@@ -177,9 +174,7 @@
                         tools:text="Uploader: 84%"
                         android:textSize="16sp"
                         tools:ignore="HardcodedText" />
-
                 </com.google.android.flexbox.FlexboxLayout>
-
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
@@ -200,11 +195,8 @@
                 <include
                     android:id="@+id/graphs_layout"
                     layout="@layout/overview_graphs_layout" />
-
             </com.google.android.material.card.MaterialCardView>
-
         </LinearLayout>
-
     </androidx.core.widget.NestedScrollView>
 
     <LinearLayout
@@ -226,7 +218,6 @@
             android:paddingBottom="6dp"
             android:text="@string/initializing"
             android:textAppearance="?android:attr/textAppearanceSmall" />
-
     </LinearLayout>
 
     <ProgressBar

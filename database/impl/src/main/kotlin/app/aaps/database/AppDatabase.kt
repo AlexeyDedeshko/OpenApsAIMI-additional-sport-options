@@ -1,5 +1,7 @@
 package app.aaps.database
 
+import android.os.Parcel
+import android.os.Parcelable
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -44,19 +46,36 @@ import app.aaps.database.entities.UserEntry
 import app.aaps.database.entities.VersionChange
 import java.io.Closeable
 
-const val DATABASE_VERSION = 28
+const val DATABASE_VERSION = 29
 
 @Database(
     version = DATABASE_VERSION,
-    entities = [app.aaps.database.entities.APSResult::class, Bolus::class, BolusCalculatorResult::class, Carbs::class,
-        EffectiveProfileSwitch::class, ExtendedBolus::class, GlucoseValue::class, ProfileSwitch::class,
-        TemporaryBasal::class, TemporaryTarget::class, TherapyEvent::class, TotalDailyDose::class,
-        PreferenceChange::class, VersionChange::class, UserEntry::class,
-        Food::class, DeviceStatus::class, OfflineEvent::class, HeartRate::class, StepsCount::class],
+    entities = [
+        app.aaps.database.entities.APSResult::class,
+        Bolus::class,
+        BolusCalculatorResult::class,
+        Carbs::class,
+        EffectiveProfileSwitch::class,
+        ExtendedBolus::class,
+        GlucoseValue::class,
+        ProfileSwitch::class,
+        TemporaryBasal::class,
+        TemporaryTarget::class,
+        TherapyEvent::class,
+        TotalDailyDose::class,
+        PreferenceChange::class,
+        VersionChange::class,
+        UserEntry::class,
+        Food::class,
+        DeviceStatus::class,
+        OfflineEvent::class,
+        HeartRate::class,
+        StepsCount::class
+    ],
     exportSchema = true
 )
 @TypeConverters(Converters::class)
-internal abstract class AppDatabase : Closeable, RoomDatabase() {
+internal abstract class AppDatabase() : Closeable, RoomDatabase(), Parcelable {
 
     abstract val glucoseValueDao: GlucoseValueDao
 
@@ -97,4 +116,28 @@ internal abstract class AppDatabase : Closeable, RoomDatabase() {
     abstract val heartRateDao: HeartRateDao
 
     abstract val stepsCountDao: StepsCountDao
+
+
+    constructor(parcel: Parcel) : this() {
+    }
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+
+    }
+
+    override fun describeContents(): Int {
+        return 0
+    }
+
+
+    companion object CREATOR : Parcelable.Creator<AppDatabase> {
+
+        override fun createFromParcel(parcel: Parcel): AppDatabase {
+            return AppDatabase(parcel)
+        }
+
+        override fun newArray(size: Int): Array<AppDatabase?> {
+            return arrayOfNulls(size)
+        }
+    }
 }

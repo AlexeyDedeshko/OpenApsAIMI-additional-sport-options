@@ -5,9 +5,10 @@ import app.aaps.core.data.model.OE
 import app.aaps.core.data.model.TE
 import app.aaps.core.data.model.TT
 
-sealed class ValueWithUnit {          //I use a sealed class because of StringResource that contains a listOf as second parameter
+sealed class ValueWithUnit {    //I use a sealed class because of StringResource that contains a listOf as second parameter
 
     object UNKNOWN : ValueWithUnit() // formerly None used as fallback
+
 
     data class SimpleString(val value: String) : ValueWithUnit() // formerly one usage of None
 
@@ -38,6 +39,8 @@ sealed class ValueWithUnit {          //I use a sealed class because of StringRe
     data class TETTReason(val value: TT.Reason) : ValueWithUnit()
 
     data class OEReason(val value: OE.Reason) : ValueWithUnit()
+
+
     companion object {
 
         fun fromGlucoseUnit(value: Double, glucoseUnit: GlucoseUnit): ValueWithUnit =
@@ -46,13 +49,13 @@ sealed class ValueWithUnit {          //I use a sealed class because of StringRe
                 GlucoseUnit.MMOL -> Mmoll(value)
             }
 
-        /*
-                fun fromGlucoseUnit(value: Double, string: String): ValueWithUnit? =
-                    when (string) {
-                        GlucoseUnit.MGDL.asText, "mgdl"   -> Mgdl(value)
-                        GlucoseUnit.MMOL.asText, "mmol/l" -> Mmoll(value)
-                        else                              -> null
-                    }
-        */
+    /*
+            fun fromGlucoseUnit(value: Double, string: String): ValueWithUnit? =
+                when (string) {
+                    GlucoseUnit.MGDL.asText, "mgdl"   -> Mgdl(value)
+                    GlucoseUnit.MMOL.asText, "mmol/l" -> Mmoll(value)
+                    else                              -> null
+                }
+    */
     }
 }

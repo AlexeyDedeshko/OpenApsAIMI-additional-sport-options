@@ -24,8 +24,8 @@ interface Sensitivity : ConfigExportImport {
     val isMinCarbsAbsorptionDynamic: Boolean
     val isOref1: Boolean
 
-    companion object {
 
+    companion object {
         const val MIN_HOURS = 1.0
         const val MIN_HOURS_FULL_AUTOSENS = 4.0
     }

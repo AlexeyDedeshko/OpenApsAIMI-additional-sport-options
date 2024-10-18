@@ -19,29 +19,35 @@ class IsfProfileGraph : GraphView {
     constructor(context: Context?) : super(context)
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
 
+
     private fun fromMgdlToUnits(value: Double, units: GlucoseUnit): Double =
         if (units == GlucoseUnit.MGDL) value else value * Constants.MGDL_TO_MMOLL
 
     fun show(profile: Profile) {
         removeAllSeries()
+
         val isfArray: MutableList<DataPoint> = ArrayList()
         var maxIsf = 0.0
         val units = profile.units
+
         for (hour in 0..23) {
             val isf = fromMgdlToUnits(profile.getIsfMgdlTimeFromMidnight(hour * 60 * 60), units)
             maxIsf = max(maxIsf, isf)
             isfArray.add(DataPoint(hour.toDouble(), isf))
             isfArray.add(DataPoint((hour + 1).toDouble(), isf))
         }
+
         val isfDataPoints: Array<DataPoint> = Array(isfArray.size) { i -> isfArray[i] }
         val isfSeries: LineGraphSeries<DataPoint> = LineGraphSeries(isfDataPoints)
         addSeries(isfSeries)
         isfSeries.thickness = 8
+
         viewport.isXAxisBoundsManual = true
         viewport.setMinX(0.0)
         viewport.setMaxX(24.0)
         viewport.isYAxisBoundsManual = true
         viewport.setMinY(0.0)
+
         val maxY = Round.ceilTo(maxIsf * 1.1, 0.5)
         viewport.setMaxY(maxY)
         gridLabelRenderer.numHorizontalLabels = 13
@@ -59,6 +65,7 @@ class IsfProfileGraph : GraphView {
         var minIsf = 1000.0
         var maxIsf = 0.0
         val units = profile1.units
+
         // isf 1
         val isfArray1: MutableList<DataPoint> = ArrayList()
         for (hour in 0..23) {
@@ -68,6 +75,7 @@ class IsfProfileGraph : GraphView {
             isfArray1.add(DataPoint(hour.toDouble(), isf))
             isfArray1.add(DataPoint((hour + 1).toDouble(), isf))
         }
+
         val isfSeries1: LineGraphSeries<DataPoint> = LineGraphSeries(Array(isfArray1.size) { i -> isfArray1[i] })
         addSeries(isfSeries1)
         isfSeries1.thickness = 8
@@ -82,6 +90,7 @@ class IsfProfileGraph : GraphView {
             isfArray2.add(DataPoint(hour.toDouble(), isf))
             isfArray2.add(DataPoint((hour + 1).toDouble(), isf))
         }
+
         val isfSeries2: LineGraphSeries<DataPoint> = LineGraphSeries(Array(isfArray2.size) { i -> isfArray2[i] })
         addSeries(isfSeries2)
         isfSeries2.thickness = 8

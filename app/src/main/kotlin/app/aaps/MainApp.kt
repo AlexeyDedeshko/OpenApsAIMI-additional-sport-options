@@ -28,7 +28,6 @@ import app.aaps.core.interfaces.configuration.ConfigBuilder
 import app.aaps.core.interfaces.db.PersistenceLayer
 import app.aaps.core.interfaces.logging.AAPSLogger
 import app.aaps.core.interfaces.logging.LTag
-import app.aaps.core.interfaces.logging.UserEntryLogger
 import app.aaps.core.interfaces.notifications.Notification
 import app.aaps.core.interfaces.plugin.PluginBase
 import app.aaps.core.interfaces.resources.ResourceHelper
@@ -102,14 +101,17 @@ class MainApp : DaggerApplication() {
     private lateinit var refreshWidget: Runnable
     private val scope = CoroutineScope(Dispatchers.Default + Job())
 
+
     override fun onCreate() {
         super.onCreate()
-
         aapsLogger.debug("onCreate")
         aapsLogger.debug("onCreate - début")
+
         copyModelToInternalStorage(this)
         aapsLogger.debug("onCreate - après copyModelToFileSystem")
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleListener.get())
+
         scope.launch {
             RxDogTag.install()
             setRxErrorHandler()
@@ -121,43 +123,50 @@ class MainApp : DaggerApplication() {
                 gitRemote = null
                 commitHash = null
             }
+
             disposable += compatDBHelper.dbChangeDisposable()
             registerActivityLifecycleCallbacks(activityMonitor)
             runOnUiThread { themeSwitcherPlugin.setThemeMode() }
+
             aapsLogger.debug("Version: " + config.VERSION_NAME)
             aapsLogger.debug("BuildVersion: " + config.BUILD_VERSION)
             aapsLogger.debug("Remote: " + config.REMOTE)
+
             registerLocalBroadcastReceiver()
 
             // trigger here to see the new version on app start after an update
-            handler.postDelayed({ versionCheckersUtils.triggerCheckVersion() }, 30000)
+            handler.postDelayed({
+                versionCheckersUtils.triggerCheckVersion()
+            }, 30000)
 
             // Register all tabs in app here
             pluginStore.plugins = plugins
             configBuilder.initialize()
 
             // delayed actions to make rh context updated for translations
-            handler.postDelayed(
-                {
-                    // check if identification is set
-                    if (config.isDev() && preferences.get(StringKey.MaintenanceIdentification).isBlank())
-                        notificationStore.add(Notification(Notification.IDENTIFICATION_NOT_SET, rh.get().gs(R.string.identification_not_set), Notification.INFO))
-                    // log version
-                    disposable += persistenceLayer.insertVersionChangeIfChanged(config.VERSION_NAME, BuildConfig.VERSION_CODE, gitRemote, commitHash).subscribe()
-                    // log app start
-                    if (preferences.get(BooleanKey.NsClientLogAppStart))
-                        disposable += persistenceLayer.insertPumpTherapyEventIfNewByTimestamp(
-                            therapyEvent = TE(
-                                timestamp = dateUtil.now(),
-                                type = TE.Type.NOTE,
-                                note = rh.get().gs(app.aaps.core.ui.R.string.androidaps_start) + " - " + Build.MANUFACTURER + " " + Build.MODEL,
-                                glucoseUnit = GlucoseUnit.MGDL
-                            ),
-                            action = Action.START_AAPS,
-                            source = Sources.Aaps, note = "", listValues = listOf()
-                        ).subscribe()
-                }, 10000
-            )
+            handler.postDelayed({
+                // check if identification is set
+                if (config.isDev() && preferences.get(StringKey.MaintenanceIdentification).isBlank()) {
+                    notificationStore.add(Notification(Notification.IDENTIFICATION_NOT_SET, rh.get().gs(R.string.identification_not_set), Notification.INFO))
+                }
+
+                // log version
+                disposable += persistenceLayer.insertVersionChangeIfChanged(config.VERSION_NAME, BuildConfig.VERSION_CODE, gitRemote, commitHash).subscribe()
+
+                // log app start
+                if (preferences.get(BooleanKey.NsClientLogAppStart))
+                    disposable += persistenceLayer.insertPumpTherapyEventIfNewByTimestamp(
+                        therapyEvent = TE(
+                            timestamp = dateUtil.now(),
+                            type = TE.Type.NOTE,
+                            note = rh.get().gs(app.aaps.core.ui.R.string.androidaps_start) + " - " + Build.MANUFACTURER + " " + Build.MODEL,
+                            glucoseUnit = GlucoseUnit.MGDL
+                        ),
+                        action = Action.START_AAPS,
+                        source = Sources.Aaps, note = "", listValues = listOf()
+                    ).subscribe()
+            }, 10000)
+
             WorkManager.getInstance(this@MainApp).enqueueUniquePeriodicWork(
                 KeepAliveWorker.KA_0,
                 ExistingPeriodicWorkPolicy.UPDATE,
@@ -166,8 +175,10 @@ class MainApp : DaggerApplication() {
                     .setInitialDelay(5, TimeUnit.SECONDS)
                     .build()
             )
+
             localAlertUtils.shortenSnoozeInterval()
             localAlertUtils.preSnoozeAlarms()
+
             doMigrations()
 
             //  schedule widget update
@@ -176,12 +187,15 @@ class MainApp : DaggerApplication() {
                 Widget.updateWidget(this@MainApp, "ScheduleEveryMin")
             }
             handler.postDelayed(refreshWidget, 60000)
+
             val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
             val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
             sensorManager.registerListener(StepService, stepSensor, SensorManager.SENSOR_DELAY_NORMAL)
+
             config.appInitialized = true
         }
     }
+
     private fun copyModelToInternalStorage(context: Context) {
         aapsLogger.debug("copyModelToInternalStorage - début")
         try {
@@ -248,12 +262,15 @@ class MainApp : DaggerApplication() {
     private fun doMigrations() {
         // set values for different builds
         // 3.1.0
-        if (preferences.getIfExists(StringKey.MaintenanceEmail) == "logs@androidaps.org")
+        if (preferences.getIfExists(StringKey.MaintenanceEmail) == "logs@androidaps.org") {
             preferences.put(StringKey.MaintenanceEmail, "logs@aaps.app")
+        }
+
         // fix values for theme switching
         sp.putString(app.aaps.plugins.main.R.string.value_dark_theme, "dark")
         sp.putString(app.aaps.plugins.main.R.string.value_light_theme, "light")
         sp.putString(app.aaps.plugins.main.R.string.value_system_theme, "system")
+
         // 3.3
         if (preferences.get(IntKey.OverviewEatingSoonDuration) == 0) preferences.remove(IntKey.OverviewEatingSoonDuration)
         if (preferences.get(UnitDoubleKey.OverviewEatingSoonTarget) == 0.0) preferences.remove(UnitDoubleKey.OverviewEatingSoonTarget)
@@ -263,8 +280,10 @@ class MainApp : DaggerApplication() {
         if (preferences.get(UnitDoubleKey.OverviewHypoTarget) == 0.0) preferences.remove(UnitDoubleKey.OverviewHypoTarget)
         if (preferences.get(UnitDoubleKey.OverviewLowMark) == 0.0) preferences.remove(UnitDoubleKey.OverviewLowMark)
         if (preferences.get(UnitDoubleKey.OverviewHighMark) == 0.0) preferences.remove(UnitDoubleKey.OverviewHighMark)
-        if (preferences.getIfExists(BooleanKey.GeneralSimpleMode) == null)
+        if (preferences.getIfExists(BooleanKey.GeneralSimpleMode) == null) {
             preferences.put(BooleanKey.GeneralSimpleMode, !preferences.get(BooleanKey.GeneralSetupWizardProcessed))
+        }
+
         // Migrate from OpenAPSSMBDynamicISFPlugin
         if (sp.getBoolean("ConfigBuilder_APS_OpenAPSSMBDynamicISFPlugin_Enabled", false)) {
             sp.remove("ConfigBuilder_APS_OpenAPSSMBDynamicISFPlugin_Enabled")
@@ -272,9 +291,11 @@ class MainApp : DaggerApplication() {
             sp.putBoolean("ConfigBuilder_APS_OpenAPSSMB_Enabled", true)
             preferences.put(BooleanKey.ApsUseDynamicSensitivity, true)
         }
+
         // convert Double to IntString
-        if (preferences.getIfExists(IntKey.ApsDynIsfAdjustmentFactor) != null)
+        if (preferences.getIfExists(IntKey.ApsDynIsfAdjustmentFactor) != null) {
             sp.putString(IntKey.ApsDynIsfAdjustmentFactor.key, preferences.get(IntKey.ApsDynIsfAdjustmentFactor).toString())
+        }
     }
 
     override fun applicationInjector(): AndroidInjector<out DaggerApplication> {
@@ -289,17 +310,20 @@ class MainApp : DaggerApplication() {
         filter.addAction(Intent.ACTION_TIME_CHANGED)
         filter.addAction(Intent.ACTION_TIMEZONE_CHANGED)
         registerReceiver(TimeDateOrTZChangeReceiver(), filter)
+
         filter = IntentFilter()
         @Suppress("DEPRECATION")
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION)
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
         registerReceiver(NetworkChangeReceiver(), filter)
+
         filter = IntentFilter()
         filter.addAction(Intent.ACTION_POWER_CONNECTED)
         filter.addAction(Intent.ACTION_POWER_DISCONNECTED)
         filter.addAction(Intent.ACTION_BATTERY_CHANGED)
         registerReceiver(ChargingStateReceiver(), filter)
+
         filter = IntentFilter()
         filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
         filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)

@@ -79,6 +79,7 @@ class OverviewPlugin @Inject constructor(
     private val constraintsChecker: ConstraintsChecker,
     private val uiInteraction: UiInteraction,
     private val nsSettingStatus: NSSettingsStatus
+
 ) : PluginBase(
     PluginDescription()
         .mainType(PluginType.GENERAL)
@@ -92,11 +93,13 @@ class OverviewPlugin @Inject constructor(
         .preferencesId(PluginDescription.PREFERENCE_SCREEN)
         .description(R.string.description_overview),
     aapsLogger, rh
+
 ), Overview {
 
     private var disposable: CompositeDisposable = CompositeDisposable()
 
     override val overviewBus = RxBusImpl(aapsSchedulers, aapsLogger)
+
 
     override fun addNotificationWithDialogResponse(id: Int, text: String, level: Int, @StringRes actionButtonId: Int, title: String, message: String) {
         rxBus.send(
@@ -130,34 +133,37 @@ class OverviewPlugin @Inject constructor(
         overviewData.initRange()
 
         notificationStore.createNotificationChannel()
+
         disposable += rxBus
             .toObservable(EventNewNotification::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ n ->
-                           if (notificationStore.add(n.notification))
-                               overviewBus.send(EventUpdateOverviewNotification("EventNewNotification"))
-                       }, fabricPrivacy::logException)
+                   if (notificationStore.add(n.notification))
+                       overviewBus.send(EventUpdateOverviewNotification("EventNewNotification"))
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventDismissNotification::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ n ->
-                           if (notificationStore.remove(n.id))
-                               overviewBus.send(EventUpdateOverviewNotification("EventDismissNotification"))
-                       }, fabricPrivacy::logException)
+                   if (notificationStore.remove(n.id))
+                       overviewBus.send(EventUpdateOverviewNotification("EventDismissNotification"))
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventIobCalculationProgress::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           overviewData.calcProgressPct = it.finalPercent
-                           overviewBus.send(EventUpdateOverviewCalcProgress("EventIobCalculationProgress"))
-                       }, fabricPrivacy::logException)
+                   overviewData.calcProgressPct = it.finalPercent
+                   overviewBus.send(EventUpdateOverviewCalcProgress("EventIobCalculationProgress"))
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventPumpStatusChanged::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           overviewData.pumpStatus = it.getStatus(context)
-                       }, fabricPrivacy::logException)
-
+                   overviewData.pumpStatus = it.getStatus(context)
+               }, fabricPrivacy::logException)
     }
 
     override fun onStop() {
@@ -240,7 +246,9 @@ class OverviewPlugin @Inject constructor(
             key = "overview_settings"
             title = rh.gs(R.string.overview)
             initialExpandedChildrenCount = 0
+
             addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewKeepScreenOn, summary = R.string.keep_screen_on_summary, title = R.string.keep_screen_on_title))
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "overview_buttons_settings"
                 title = rh.gs(R.string.overview_buttons_selection)
@@ -257,6 +265,7 @@ class OverviewPlugin @Inject constructor(
                 addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewShowCgmButton, summary = R.string.show_cgm_button_summary, title = R.string.cgm))
                 addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewShowCalibrationButton, summary = R.string.show_calibration_button_summary, title = app.aaps.core.ui.R.string.calibration))
             })
+
             addPreference(
                 AdaptiveIntentPreference(
                     ctx = context,
@@ -265,6 +274,7 @@ class OverviewPlugin @Inject constructor(
                     intent = Intent(context, uiInteraction.quickWizardListActivity)
                 )
             )
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "default_temp_targets_settings"
                 title = rh.gs(R.string.default_temptargets)
@@ -275,6 +285,7 @@ class OverviewPlugin @Inject constructor(
                 addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.OverviewHypoDuration, title = R.string.hypo_duration))
                 addPreference(AdaptiveUnitPreference(ctx = context, unitKey = UnitDoubleKey.OverviewHypoTarget, title = R.string.hypo_target))
             })
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "prime_fill_settings"
                 title = rh.gs(R.string.fill_bolus_title)
@@ -282,6 +293,7 @@ class OverviewPlugin @Inject constructor(
                 addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ActionsFillButton2, title = R.string.button2))
                 addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.ActionsFillButton3, title = R.string.button3))
             })
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "range_settings"
                 summary = rh.gs(R.string.prefs_range_summary)
@@ -289,8 +301,10 @@ class OverviewPlugin @Inject constructor(
                 addPreference(AdaptiveUnitPreference(ctx = context, unitKey = UnitDoubleKey.OverviewLowMark, title = R.string.low_mark))
                 addPreference(AdaptiveUnitPreference(ctx = context, unitKey = UnitDoubleKey.OverviewHighMark, title = R.string.high_mark))
             })
+
             addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewShortTabTitles, title = R.string.short_tabtitles))
             addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewShowNotesInDialogs, title = R.string.overview_show_notes_field_in_dialogs_title))
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "statuslights_overview_advanced"
                 title = rh.gs(app.aaps.core.ui.R.string.statuslights)
@@ -313,10 +327,12 @@ class OverviewPlugin @Inject constructor(
                                                           true
                                                       }))
             })
+
             addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.OverviewBolusPercentage, dialogMessage = R.string.deliverpartofboluswizard, title = app.aaps.core.ui.R.string.partialboluswizard))
             addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.OverviewResetBolusPercentageTime, dialogMessage = R.string.deliver_part_of_boluswizard_reset_time, title = app.aaps.core.ui.R.string.partialboluswizard_reset_time))
             addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewUseBolusAdvisor, summary = R.string.enable_bolus_advisor_summary, title = R.string.enable_bolus_advisor))
             addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.OverviewUseBolusReminder, summary = R.string.enablebolusreminder_summary, title = R.string.enablebolusreminder))
+
             addPreference(preferenceManager.createPreferenceScreen(context).apply {
                 key = "overview_advanced_settings"
                 title = rh.gs(app.aaps.core.ui.R.string.advanced_settings_title)
@@ -330,10 +346,12 @@ class OverviewPlugin @Inject constructor(
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun registerLocalBroadcastReceiver() {
         val filter = IntentFilter().apply { addAction(DismissNotificationReceiver.ACTION) }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.registerReceiver(dismissReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        else
+        } else {
             context.registerReceiver(dismissReceiver, filter)
+        }
     }
 
     private fun unregisterLocalBroadcastReceiver() {

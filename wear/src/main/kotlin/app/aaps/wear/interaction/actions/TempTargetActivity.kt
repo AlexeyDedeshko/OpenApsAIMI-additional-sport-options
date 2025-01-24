@@ -2,19 +2,19 @@
 
 package app.aaps.wear.interaction.actions
 
+//Добавляю для подключения помпы
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.ImageView
-import app.aaps.core.interfaces.rx.events.EventWearToMobile
-import app.aaps.core.interfaces.rx.weardata.EventData.ActionTempTargetPreCheck
 import app.aaps.core.interfaces.utils.SafeParse
 import app.aaps.wear.R
 import app.aaps.wear.interaction.utils.EditPlusMinusViewAdapter
 import app.aaps.wear.interaction.utils.PlusMinusEditText
 import app.aaps.wear.nondeprecated.GridPagerAdapterNonDeprecated
+import app.aaps.wear.pump.PumpConnectionManager
 import java.text.DecimalFormat
 
 class TempTargetActivity : ViewSelectorActivity() {
@@ -50,34 +50,50 @@ class TempTargetActivity : ViewSelectorActivity() {
         override fun instantiateItem(container: ViewGroup, row: Int, col: Int): Any? = when {
             // Если col == 0 (первый столбец)
             col == 0 -> {
-                // Создаем адаптер для интерфейса с элементами "плюс-минус"
+                // кнопка плюс
                 val view = LayoutInflater.from(applicationContext).inflate(R.layout.action_start, container, false)
                 // Получаем корневой элемент интерфейса из адаптера
-                val confirmButton = view.findViewById<ImageView>(R.id.startbutton)
+                val startButton = view.findViewById<ImageView>(R.id.startbutton)
 
-                // Устанавливаем обработчик нажатия на кнопку
-                confirmButton.setOnClickListener {
-                    // Создаем объект действия с текущими настройками
-                    val action = ActionTempTargetPreCheck(
-                        ActionTempTargetPreCheck.TempTargetCommand.MANUAL, // Тип действия: ручной ввод
-                        isMGDL, // Единицы измерения: mg/dL или mmol/L
-                        SafeParse.stringToInt(time?.editText?.text.toString()), // Время действия в минутах
-                        SafeParse.stringToDouble(lowRange?.editText?.text.toString()), // Нижний предел диапазона
-                        if (isSingleTarget)
-                            SafeParse.stringToDouble(lowRange?.editText?.text.toString()) // Если одиночная цель, берём нижний предел
-                        else
-                            SafeParse.stringToDouble(highRange?.editText?.text.toString()) // Если диапазон, берём верхний предел
-                    )
+// пытаюсь перенести сервис для подключения
+//                 val startButton = findViewById<Button>(R.id.startbutton)
+//                 startButton.setOnClickListener {
+//                     // Вызов метода подключения из сервиса
+//                     pumpConnectionService.connect()
+//                 }
 
-                    // Отправляем действие через систему обмена сообщений
-                    rxBus.send(EventWearToMobile(action))
+                // сервис для подключния выше
 
-                    // Показываем сообщение с подтверждением
-                    showToast(this@TempTargetActivity, R.string.action_tempt_confirmation)
+                //Ниже тестирую нейрокнопку начала блютуса
+                startButton.setOnClickListener {
+                    Log.d("Debug", "Создаём экземпляр PumpConnectionManager")
+                    val pumpManager = PumpConnectionManager() // Создание экземпляра менеджера подключения
 
-                    // Закрываем текущую активность и все связанные с ней
-                    finishAffinity()
+                    Log.d("Debug", "Проверяем Bluetooth доступность")
+                    if (pumpManager.isBluetoothAvailable()) { // Проверка наличия Bluetooth
+                        Log.d("Debug", "Включаем Bluetooth")
+                        pumpManager.enableBluetooth() // Включение Bluetooth
+
+                        Log.d("Debug", "Начинаем поиск устройств")
+                        val devices = pumpManager.startDiscovery() // Поиск доступных устройств
+                        devices.forEach { device ->
+                            Log.d("Debug", "Найдено устройство: ${device.name} (${device.address})") // Логирование устройств
+                        }
+
+                        Log.d("Debug", "Пытаемся подключиться к устройству")
+                        val targetDeviceAddress = "XX:XX:XX:XX:XX:XX" // Укажите адрес устройства
+                        if (pumpManager.connectToDevice(targetDeviceAddress)) {
+                            Log.d("Debug", "Подключение успешно!") // Лог успешного подключения
+                        } else {
+                            Log.e("Debug", "Не удалось подключиться к помпе") // Лог ошибки подключения
+                        }
+                    } else {
+                        Log.e("Debug", "Bluetooth недоступен")
+                    }
                 }
+
+
+                // Окончание кода коннекта нейрокнопки блютус
 
                 // Добавляем созданный интерфейс в контейнер
                 container.addView(view)
@@ -87,6 +103,9 @@ class TempTargetActivity : ViewSelectorActivity() {
             }
 
             // Код для второго экрана (col == 1)
+            // Так как на 1 экране у нас кнопка добавить то на втором экране должна быть кнопка начать поиск по блютус
+            // Далее система ищет и находит помпу и после этого должен выводиться код и lnm ввести его
+            // И посел уже мы подключаемся
             col == 1 -> {
                 val viewAdapter = EditPlusMinusViewAdapter.getViewAdapter(sp, applicationContext, container, false)
                 val view = viewAdapter.root

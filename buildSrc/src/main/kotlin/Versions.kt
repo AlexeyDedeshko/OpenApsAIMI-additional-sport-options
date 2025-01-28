@@ -2,8 +2,8 @@ import org.gradle.api.JavaVersion
 
 object Versions {
 
-    const val appVersion = "3.3.0-dev-c-AIMI-b-061024"
-    const val versionCode = 1500
+    const val appVersion = "3.3.0-dev-c-AIMI-b-061024 workouts_alexey 1.0.0"
+    const val versionCode = 1501 // 1500
 
     const val ndkVersion = "21.1.6352462"
 

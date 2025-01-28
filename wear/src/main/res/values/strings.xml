@@ -118,6 +118,7 @@
     <string name="action_preset_3">Preset 3</string>
     <string name="action_free_amount" comment="In prime/fill menu, allows one to enter any amount to be used for priming/filling">Free amount</string>
     <string name="action_confirm">CONFIRM</string>
+    <string name="action_start">CONFIRM</string>
     <string name="action_timeshift">timeshift</string>
     <string name="action_bolus">Bolus</string>
     <string name="bolus_progress">Bolus Progress</string>
@@ -264,6 +265,8 @@
     <string name="error">!err!</string>
     <string name="key_heart_rate_sampling" translatable="false">heart_rate_sampling</string>
     <string name="pref_heartRateSampling">Heart Rate</string>
+    <!-- Добавляю для работы помпы -->
+    <string name="pump_connection">Pump Con</string>
     <string name="key_heart_rate_smoothing" translatable="false">heart_rate_smoothing</string>
     <string name="pref_heartRateSmoothing">HR Smoothing</string>
     <string name="key_steps_sampling" translatable="false">key_steps_sampling</string>

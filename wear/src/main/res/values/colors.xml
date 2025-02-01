@@ -185,4 +185,8 @@
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
 
+    // Для подключения помпы
+    <color name="list_delimiter">#000000</color>
+    <color name="pumpStatusBackground">#263238</color>
+
 </resources>

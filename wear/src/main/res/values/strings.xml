@@ -267,4 +267,17 @@
 
     //Добавляю для работы помпы
     <string name="pump_connection">Pump Con</string>
+    <string name="combov2_cannot_pair_driver_not_initialized_explanation">сannot_pair_driver</string>
+    <string name="combov2_go_back">combov2_go_back</string>
+    <string name="combov2_pairing_start_steps">combov2_pairing_start_steps</string>
+    <string name="combov2_start_pairing">combov2_start_pairing</string>
+    <string name="combov2_pairing_in_progress">combov2_pairing_in_progress</string>
+    <string name="combov2_steps_if_no_connection_during_pairing">combov2_steps_if_no_connection_during_pairing</string>
+    <string name="combov2_enter_pin">combov2_enter_pin</string>
+    <string name="combov2_pin_hint">combov2_pin_hint</string>
+    <string name="ok">ok</string>
+    <string name="combov2_pairing_pin_failure">combov2_pairing_pin_failure</string>
+    <string name="combov2_cancel_pairing">combov2_cancel_pairing</string>
+    <string name="combov2_pairing_finished_successfully">combov2_pairing_finished_successfully</string>
+    <string name="combov2_pin_entry_hint">combov2_pin_entry_hint</string>
 </resources>

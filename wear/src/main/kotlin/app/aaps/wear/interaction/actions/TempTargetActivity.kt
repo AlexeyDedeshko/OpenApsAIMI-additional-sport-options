@@ -4,7 +4,6 @@ package app.aaps.wear.interaction.actions
 
 //Добавляю для подключения помпы
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,7 +13,6 @@ import app.aaps.core.interfaces.rx.weardata.EventData.ActionTempTargetPreCheck
 import app.aaps.core.interfaces.utils.SafeParse
 import app.aaps.wear.R
 import app.aaps.wear.interaction.utils.EditPlusMinusViewAdapter
-import app.aaps.wear.pump.PumpConnectionManager
 import app.aaps.wear.interaction.utils.PlusMinusEditText
 import app.aaps.wear.nondeprecated.GridPagerAdapterNonDeprecated
 import java.text.DecimalFormat

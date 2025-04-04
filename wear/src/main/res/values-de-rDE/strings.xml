@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Schaue Dir bitte die Watchface-Konfiguration an.</string>
     <string name="menu_tempt">Temp. Ziel</string>
     <string name="menu_wizard">Rechner</string>
-    <string name="menu_wizard_short">Rechner</string>
+    <string name="menu_calc">Rechner</string>
     <string name="menu_treatment">Bolus</string>
     <string name="menu_treatment_short">Behandl</string>
     <string name="menu_bolus">Bolus</string>

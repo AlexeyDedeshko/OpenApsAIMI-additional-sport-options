@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Veuillez regardez dans la configuration du cadran.</string>
     <string name="menu_tempt">Cible Temp</string>
     <string name="menu_wizard">Assistant</string>
-    <string name="menu_wizard_short">Assist.</string>
+    <string name="menu_calc">Assist.</string>
     <string name="menu_treatment">Traitement</string>
     <string name="menu_treatment_short">Trait.</string>
     <string name="menu_bolus">Bolus</string>

@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">請查看錶盤設定。</string>
     <string name="menu_tempt">臨時目標</string>
     <string name="menu_wizard">計算機</string>
-    <string name="menu_wizard_short">計算</string>
+    <string name="menu_calc">計算</string>
     <string name="menu_treatment">治療</string>
     <string name="menu_treatment_short">治療</string>
     <string name="menu_bolus">注射</string>

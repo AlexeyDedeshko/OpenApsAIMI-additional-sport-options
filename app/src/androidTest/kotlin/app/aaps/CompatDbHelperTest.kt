@@ -84,7 +84,6 @@ class CompatDbHelperTest @Inject constructor() {
     @SuppressLint("CheckResult")
     @Test
     fun compatDbHelperTest() {
-
         // Prepare
         rxHelper.listen(EventNewBG::class.java)
         rxHelper.listen(EventNewHistoryData::class.java)

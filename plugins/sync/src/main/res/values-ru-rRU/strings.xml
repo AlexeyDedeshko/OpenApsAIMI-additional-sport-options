@@ -129,6 +129,7 @@
     <string name="description_wear">Мониторить и контролировать AAPS при помощи часов WearOS.</string>
     <string name="no_watch_connected">(Часы не подключены)</string>
     <string name="pump_status">Статус помпы</string>
+    <string name="pump_connect">Подсоединенить помпу</string>
     <string name="loop_status">Статус цикла</string>
     <string name="wizard_result">Мастер:\nИнсулин: %1$.2fед\nУгл: %2$dг</string>
     <string name="quick_wizard_not_available">Выбранный мастер быстрого доступа больше недоступен, обновите плитку</string>

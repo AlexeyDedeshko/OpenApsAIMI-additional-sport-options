@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Proszę, zajrzyj do konfiguracji zegarka.</string>
     <string name="menu_tempt">CelTymcz.</string>
     <string name="menu_wizard">Kalkulator</string>
-    <string name="menu_wizard_short">Kalk</string>
+    <string name="menu_calc">Kalk</string>
     <string name="menu_treatment">Terapia</string>
     <string name="menu_treatment_short">Lecz</string>
     <string name="menu_bolus">Bolus</string>

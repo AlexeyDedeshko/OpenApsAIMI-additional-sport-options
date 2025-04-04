@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Uitaţi-vă în configurarea Watchface, vă rugăm.</string>
     <string name="menu_tempt">ŢintăTemporară</string>
     <string name="menu_wizard">Calculator</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Tratament</string>
     <string name="menu_treatment_short">Tratare</string>
     <string name="menu_bolus">Bolus</string>

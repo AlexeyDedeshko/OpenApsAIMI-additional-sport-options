@@ -19,6 +19,7 @@ import java.io.IOException
 abstract class WallpaperComplication : BaseComplicationProviderService() {
 
     abstract val wallpaperAssetsFileName: String
+
     override fun buildComplicationData(dataType: Int, raw: RawDisplayData, complicationPendingIntent: PendingIntent): ComplicationData? {
         var complicationData: ComplicationData? = null
         if (dataType == ComplicationData.TYPE_LARGE_IMAGE) {
@@ -29,19 +30,24 @@ abstract class WallpaperComplication : BaseComplicationProviderService() {
             val height = metrics.heightPixels
             val builder = ComplicationData.Builder(ComplicationData.TYPE_LARGE_IMAGE)
             val assetManager = assets
+
             try {
                 assetManager.open(wallpaperAssetsFileName).use { iStr ->
                     val bitmap = BitmapFactory.decodeStream(iStr)
                     val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
                     builder.setLargeImage(Icon.createWithBitmap(scaled))
                 }
+
             } catch (e: IOException) {
                 aapsLogger.error(LTag.WEAR, "Cannot read wallpaper asset: " + e.message, e)
             }
+
             complicationData = builder.build()
+
         } else {
             aapsLogger.warn(LTag.WEAR, "Unexpected complication type $dataType")
         }
+
         return complicationData
     }
 }

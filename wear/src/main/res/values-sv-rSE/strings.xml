@@ -68,7 +68,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Kontrollera watchface-konfigurationen, tack.</string>
     <string name="menu_tempt">Tempmål</string>
     <string name="menu_wizard">Kalkylator</string>
-    <string name="menu_wizard_short">Kalk</string>
+    <string name="menu_calc">Kalk</string>
     <string name="menu_treatment">Behandling</string>
     <string name="menu_treatment_short">Beh</string>
     <string name="menu_bolus">Bolus</string>

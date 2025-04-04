@@ -395,7 +395,11 @@ open class VirtualPumpPlugin @Inject constructor(
 
     override fun serialNumber(): String = InstanceId.instanceId
 
-    override fun shortStatus(veryShort: Boolean): String = "Virtual Pump"
+    // override fun shortStatus(veryShort: Boolean): String = "Virtual Pump"
+    override fun shortStatus(veryShort: Boolean): String {
+        aapsLogger.debug(LTag.PUMP, "shortStatus(); Virtual Pump")
+        return "Virtual Pump"
+    }
 
     override fun canHandleDST(): Boolean = true
 

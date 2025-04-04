@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.aaps.core.interfaces.logging.AAPSLogger
@@ -48,7 +49,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import javax.inject.Inject
 
 class DataLayerListenerServiceWear : WearableListenerService() {
-
+    private val TAG = "DataLayerListenerServiceWear"
     @Inject lateinit var aapsLogger: AAPSLogger
     @Inject lateinit var persistence: Persistence
     @Inject lateinit var sp: SP
@@ -76,12 +77,15 @@ class DataLayerListenerServiceWear : WearableListenerService() {
         super.onCreate()
         startForegroundService()
         handler.post { updateTranscriptionCapability() }
+
         disposable += rxBus
             .toObservable(EventWearToMobile::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe {
+                Log.d(TAG, "trigger EventWearToMobile for payload: ${it.payload}")
                 sendMessage(rxPath, it.payload.serialize())
             }
+
         disposable += rxBus
             .toObservable(EventWearDataToMobile::class.java)
             .observeOn(aapsSchedulers.io)
@@ -93,17 +97,17 @@ class DataLayerListenerServiceWear : WearableListenerService() {
             .observeOn(aapsSchedulers.main)
             .subscribe { event: EventWearPreferenceChange ->
                 if (event.changedKey == getString(R.string.key_heart_rate_sampling)) updateHeartRateListener()
-                if (event.changedKey == getString(R.string.key_steps_sampling)) updatestepsCountListener()
+                if (event.changedKey == getString(R.string.key_steps_sampling)) updateStepsCountListener()
             }
 
         updateHeartRateListener()
-        updatestepsCountListener()
+        updateStepsCountListener()
     }
 
     override fun onCapabilityChanged(p0: CapabilityInfo) {
         super.onCapabilityChanged(p0)
         handler.post { updateTranscriptionCapability() }
-        aapsLogger.debug(LTag.WEAR, "onCapabilityChanged:  ${p0.name} ${p0.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
+        aapsLogger.debug(LTag.WEAR, "$TAG onCapabilityChanged:  ${p0.name} ${p0.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
     }
 
     override fun onDestroy() {
@@ -119,7 +123,7 @@ class DataLayerListenerServiceWear : WearableListenerService() {
             if (event.type == DataEvent.TYPE_CHANGED) {
                 val path = event.dataItem.uri.path
 
-                aapsLogger.debug(LTag.WEAR, "onDataChanged: Path: $path, EventDataItem=${event.dataItem}")
+                aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, EventDataItem=${event.dataItem}")
                 try {
                     @Suppress("ControlFlowWithEmptyBody", "UNUSED_EXPRESSION")
                     when (path) {
@@ -135,26 +139,27 @@ class DataLayerListenerServiceWear : WearableListenerService() {
     @ExperimentalSerializationApi
     override fun onMessageReceived(messageEvent: MessageEvent) {
         super.onMessageReceived(messageEvent)
-
+        aapsLogger.debug(LTag.WEAR, "$TAG 1. onMessageReceived: ${messageEvent}")
         when (messageEvent.path) {
             rxPath     -> {
-                aapsLogger.debug(LTag.WEAR, "onMessageReceived: ${String(messageEvent.data)}")
+                aapsLogger.debug(LTag.WEAR, "$TAG onMessageReceived: ${String(messageEvent.data)}")
                 val command = EventData.deserialize(String(messageEvent.data))
+                Log.d(TAG, "messageEvent.data = ${String(messageEvent.data)}, command = ${command}")
                 rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
                 // Use this sender
                 transcriptionNodeId = messageEvent.sourceNodeId
-                aapsLogger.debug(LTag.WEAR, "Updated node: $transcriptionNodeId")
+                aapsLogger.debug(LTag.WEAR, "$TAG Updated node: $transcriptionNodeId")
             }
 
             rxDataPath -> {
-                aapsLogger.debug(LTag.WEAR, "onMessageReceived: ${messageEvent.data.size}")
+                aapsLogger.debug(LTag.WEAR, "$TAG; onMessageReceived: ${messageEvent.data.size}")
                 ZipWatchfaceFormat.loadCustomWatchface(messageEvent.data, "", false)?.let {
                     val command = EventData.ActionSetCustomWatchface(it.cwfData)
                     rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
                 }
                 // Use this sender
                 transcriptionNodeId = messageEvent.sourceNodeId
-                aapsLogger.debug(LTag.WEAR, "Updated node: $transcriptionNodeId")
+                aapsLogger.debug(LTag.WEAR, "$TAG Updated node: $transcriptionNodeId")
             }
         }
     }
@@ -205,7 +210,7 @@ class DataLayerListenerServiceWear : WearableListenerService() {
         }
     }
 
-    private fun updatestepsCountListener() {
+    private fun updateStepsCountListener() {
         if (sp.getBoolean(R.string.key_steps_sampling, false)) {
             if (stepCountListener == null) {
                 stepCountListener = StepCountListener(
@@ -238,9 +243,9 @@ class DataLayerListenerServiceWear : WearableListenerService() {
         val capabilityInfo: CapabilityInfo = Tasks.await(
             capabilityClient.getCapability(PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
         )
-        aapsLogger.debug(LTag.WEAR, "Nodes: ${capabilityInfo.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
+        aapsLogger.debug(LTag.WEAR, "$TAG Nodes: ${capabilityInfo.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
         pickBestNodeId(capabilityInfo.nodes)?.let { transcriptionNodeId = it }
-        aapsLogger.debug(LTag.WEAR, "Selected node: $transcriptionNodeId")
+        aapsLogger.debug(LTag.WEAR, "$TAG Selected node: $transcriptionNodeId")
     }
 
     // Find a nearby node or pick one arbitrarily
@@ -259,37 +264,38 @@ class DataLayerListenerServiceWear : WearableListenerService() {
                         .setUrgent()
 
                     val result = dataClient.putDataItem(request).await()
-                    aapsLogger.debug(LTag.WEAR, "sendData: ${result.uri} ${params.joinToString()}")
+                    aapsLogger.debug(LTag.WEAR, "$TAG sendData: ${result.uri} ${params.joinToString()}")
                 }
             } catch (cancellationException: CancellationException) {
                 throw cancellationException
             } catch (exception: Exception) {
-                aapsLogger.error(LTag.WEAR, "DataItem failed: $exception")
+                aapsLogger.error(LTag.WEAR, "$TAG DataItem failed: $exception")
             }
         }
     }
 
     private fun sendMessage(path: String, data: String?) {
         transcriptionNodeId?.also { nodeId ->
-            aapsLogger.debug(LTag.WEAR, "sendMessage: $path $data")
-            messageClient
-                .sendMessage(nodeId, path, data?.toByteArray() ?: byteArrayOf()).apply {
-                    addOnSuccessListener { }
+            aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path, data: $data, nodeId = $nodeId")
+            messageClient.sendMessage(nodeId, path, data?.toByteArray() ?: byteArrayOf()).apply {
+                    addOnSuccessListener {
+                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path success $it")
+                    }
                     addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "sendMessage:  $path failure $it")
+                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure $it")
                     }
                 }
-        } ?: aapsLogger.debug(LTag.WEAR, "sendMessage: Ignoring message. No node selected.")
+        } ?: aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: Ignoring message. No node selected.")
     }
 
     private fun sendMessage(path: String, data: ByteArray) {
-        aapsLogger.debug(LTag.WEAR, "sendMessage: $path ${data.size}")
+        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage byte array: $path ${data.size}")
         transcriptionNodeId?.also { nodeId ->
             messageClient
                 .sendMessage(nodeId, path, data).apply {
                     addOnSuccessListener { }
                     addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "sendMessage:  $path failure ${data.size}")
+                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure ${data.size}")
                     }
                 }
         }

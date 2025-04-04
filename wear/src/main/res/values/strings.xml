@@ -80,8 +80,9 @@
     <string name="pref_moreWatchfaceSettings">More Watchface settings</string>
     <string name="pref_lookInYourWatchfaceConfiguration">Look into Watchface configuration, please.</string>
     <string name="menu_tempt">TempT</string>
+    <string name="menu_exercise_mode">Exercise Mode</string>
     <string name="menu_wizard">Calculator</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Treatment</string>
     <string name="menu_treatment_short">Treat</string>
     <string name="menu_bolus">Bolus</string>
@@ -97,6 +98,7 @@
     <string name="quick_wizard_short">XL</string>
     <string name="action_duration">Duration</string>
     <string name="action_tempt_confirmation">Temp Target Requested</string>
+    <string name="action_exercise_mode_confirmation">Exercise Mode Requested</string>
     <string name="action_quick_wizard_confirmation">Quick Wizard Requested</string>
     <string name="action_treatment_confirmation">Treatment Requested</string>
     <string name="action_bolus_confirmation">Bolus Requested</string>
@@ -124,6 +126,7 @@
     <string name="press_to_cancel">press to cancel</string>
     <string name="cancel_bolus">CANCEL BOLUS</string>
     <string name="status_pump">Pump</string>
+    <string name="connect_pump">Pump Connection</string>
     <string name="status_loop">Loop</string>
     <string name="status_profile_switch">Profile switch</string>
     <string name="status_tdd">TDD</string>

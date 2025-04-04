@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Vennligst sjekk urskiveinnstillinger.</string>
     <string name="menu_tempt">Midl. mål</string>
     <string name="menu_wizard">Kalkulator</string>
-    <string name="menu_wizard_short">Kalk</string>
+    <string name="menu_calc">Kalk</string>
     <string name="menu_treatment">Behandling</string>
     <string name="menu_treatment_short">Behandle</string>
     <string name="menu_bolus">Bolus</string>

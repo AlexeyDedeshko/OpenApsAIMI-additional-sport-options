@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Prašom žiūrėti Watchface konfigūraciją.</string>
     <string name="menu_tempt">LaikinasTikslas</string>
     <string name="menu_wizard">Skaičiuotuvas</string>
-    <string name="menu_wizard_short">Skaič.</string>
+    <string name="menu_calc">Skaič.</string>
     <string name="menu_treatment">Terapija</string>
     <string name="menu_treatment_short">Terap</string>
     <string name="menu_bolus">Bolusas</string>

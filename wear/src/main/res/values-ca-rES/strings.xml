@@ -58,7 +58,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Mireu a la configuració de Watchface, si us plau.</string>
     <string name="menu_tempt">TempT</string>
     <string name="menu_wizard">Calculadora</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Tractament</string>
     <string name="menu_bolus">Bolus</string>
     <string name="menu_carb">Carbs</string>

@@ -70,7 +70,10 @@ class TestPumpPlugin(val rh: ResourceHelper) : Pump {
     override fun manufacturer(): ManufacturerType = ManufacturerType.AAPS
     override fun model(): PumpType = PumpType.GENERIC_AAPS
     override fun serialNumber(): String = "1"
-    override fun shortStatus(veryShort: Boolean): String = "Virtual Pump"
+    // override fun shortStatus(veryShort: Boolean): String = "Virtual Pump"
+    override fun shortStatus(veryShort: Boolean): String {
+        return "TestPumpPlugin Virtual Pump"
+    }
     override val isFakingTempsByExtendedBoluses: Boolean = false
     override fun loadTDDs(): PumpEnactResult = PumpEnactResultObject(rh).success(true)
     override fun canHandleDST(): Boolean = true

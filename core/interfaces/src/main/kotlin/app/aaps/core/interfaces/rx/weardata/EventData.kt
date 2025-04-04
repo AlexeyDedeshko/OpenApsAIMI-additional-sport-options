@@ -74,6 +74,9 @@ sealed class EventData : Event() {
     data class ActionPumpStatus(val timeStamp: Long) : EventData()
 
     @Serializable
+    data class ActionPumpConnect(val timeStamp: Long) : EventData()
+
+    @Serializable
     data class ActionLoopStatus(val timeStamp: Long) : EventData()
 
     @Serializable
@@ -135,21 +138,39 @@ sealed class EventData : Event() {
     @Serializable
     data class ActionTempTargetPreCheck(
         val command: TempTargetCommand,
-        val isMgdl: Boolean = true, val duration: Int = 0, val low: Double = 0.0, val high: Double = 0.0 // manual
+        val isMgdl: Boolean = true,
+        val duration: Int = 0,
+        val low: Double = 0.0,
+        val high: Double = 0.0 // manual
     ) : EventData() {
 
         @Serializable
         enum class TempTargetCommand {
-
-            PRESET_ACTIVITY, PRESET_HYPO, PRESET_EATING, CANCEL, MANUAL
+             PRESET_ACTIVITY, PRESET_HYPO, PRESET_EATING, CANCEL, MANUAL
         }
+    }
 
+    @Serializable
+    data class ActionExerciseMode(
+        // val command: TempTargetCommand,
+        val percentage: Int,
+        val duration: Int,
+        val timeShift: Int
+    ): EventData() {
+        //
+        // @Serializable
+        // enum class TempTargetCommand {
+        //     PRESET_ACTIVITY, PRESET_HYPO, PRESET_EATING, CANCEL, MANUAL
+        // }
     }
 
     // Mobile <- Wear return
 
     @Serializable
     data class ActionWizardConfirmed(val timeStamp: Long) : EventData()
+
+    @Serializable
+    data class ActionExerciseModeConfirmed(val percentage: Double = 0.0, val duration: Int = 0, val timeshift: Double = 0.0) : EventData()
 
     @Serializable
     data class ActionTempTargetConfirmed(val isMgdl: Boolean = true, val duration: Int = 0, val low: Double = 0.0, val high: Double = 0.0) : EventData()

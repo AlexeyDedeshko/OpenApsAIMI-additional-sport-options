@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Lütfen, Saatarayüzü yapılandırmasına bakın.</string>
     <string name="menu_tempt">GeçiciH</string>
     <string name="menu_wizard">Hesap makinesi</string>
-    <string name="menu_wizard_short">Hesap</string>
+    <string name="menu_calc">Hesap</string>
     <string name="menu_treatment">Tedavi</string>
     <string name="menu_treatment_short">Tedavi</string>
     <string name="menu_bolus">Bolus</string>

@@ -9,7 +9,7 @@
     <string name="pref_low">Nisko</string>
     <string name="pref_high">Visoko</string>
     <string name="menu_wizard">Kalkulator</string>
-    <string name="menu_wizard_short">Izračun</string>
+    <string name="menu_calc">Izračun</string>
     <string name="menu_treatment">Tretman</string>
     <string name="menu_bolus">Bolus</string>
     <string name="menu_carb">UH</string>

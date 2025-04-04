@@ -2,6 +2,7 @@
 
 package app.aaps.wear.tile
 
+import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.wear.tiles.ActionBuilders
@@ -50,13 +51,13 @@ import kotlinx.coroutines.guava.future
 import javax.inject.Inject
 import kotlin.math.sqrt
 
+private const val TAG = "TileBase"
 private const val SPACING_ACTIONS = 3f
 private const val ICON_SIZE_FRACTION = 0.4f // Percentage of button diameter
 private val BUTTON_COLOR = R.color.gray_850
 private const val LARGE_SCREEN_WIDTH_DP = 210
 
 interface TileSource {
-
     fun getResourceReferences(resources: android.content.res.Resources): List<Int>
     fun getSelectedActions(): List<Action>
     fun getValidFor(): Long?
@@ -151,26 +152,33 @@ abstract class TileBase : TileService() {
             return Text.Builder()
                 .setText(resources.getString(R.string.wear_control_not_enabled))
                 .build()
+
         } else if (wearControl == WearControl.NO_DATA) {
             return Text.Builder()
                 .setText(resources.getString(R.string.wear_control_no_data))
                 .build()
         }
+
         if (actions.isNotEmpty()) {
+            Log.d(TAG, "actions.size = ${actions.size}")
             with(Column.Builder()) {
                 if (actions.size == 1 || actions.size == 3) {
                     addContent(addRowSingle(actions[0], deviceParameters))
                 }
+
                 if (actions.size == 4 || actions.size == 2) {
                     addContent(addRowDouble(actions[0], actions[1], deviceParameters))
                 }
+
                 if (actions.size == 3) {
                     addContent(addRowDouble(actions[1], actions[2], deviceParameters))
                 }
+
                 if (actions.size == 4) {
                     addContent(Spacer.Builder().setHeight(dp(SPACING_ACTIONS)).build())
                     addContent(addRowDouble(actions[2], actions[3], deviceParameters))
                 }
+
                 return build()
             }
         }
@@ -192,6 +200,7 @@ abstract class TileBase : TileService() {
             .build()
 
     private fun doAction(action: Action): ActionBuilders.Action {
+        Log.d(TAG, "doAction; action ${action.message}")
         val builder = ActionBuilders.AndroidActivity.Builder()
             .setClassName(action.activityClass)
             .setPackageName(this.packageName)
@@ -213,6 +222,7 @@ abstract class TileBase : TileService() {
         val circleDiameter = circleDiameter(deviceParameters)
         val text = action.buttonText
         val textSub = action.buttonTextSub
+
         return Box.Builder()
             .setWidth(dp(circleDiameter))
             .setHeight(dp(circleDiameter))
@@ -298,7 +308,9 @@ abstract class TileBase : TileService() {
     }
 
     private fun getWearControl(): WearControl {
+        Log.d(TAG, "1 WearControl = ${preferences.get(BooleanKey.WearControl)}")
         if (preferences.getIfExists(BooleanKey.WearControl) == null) {
+            Log.d(TAG, "2 WearControl = ${preferences.getIfExists(BooleanKey.WearControl)}")
             return WearControl.NO_DATA
         }
         val wearControlPref = preferences.get(BooleanKey.WearControl)

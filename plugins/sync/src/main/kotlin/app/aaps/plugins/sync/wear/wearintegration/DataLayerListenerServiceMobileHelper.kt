@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
+import app.aaps.core.interfaces.logging.LTag
 import app.aaps.core.interfaces.notifications.NotificationHolder
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,10 +24,14 @@ import javax.inject.Singleton
 class DataLayerListenerServiceMobileHelper @Inject constructor(
     private val notificationHolder: NotificationHolder
 ) {
+    private val TAG = "DataLayerListenerServiceMobileHelper"
 
     fun startService(context: Context) {
+        Log.d(LTag.WEAR.toString(), "$TAG startService")
+
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                Log.d(LTag.WEAR.toString(), "$TAG onServiceConnected")
                 // The binder of the service that returns the instance that is created.
                 val binder: DataLayerListenerServiceMobile.LocalBinder = service as DataLayerListenerServiceMobile.LocalBinder
 
@@ -42,12 +48,17 @@ class DataLayerListenerServiceMobileHelper @Inject constructor(
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
+                Log.d(LTag.WEAR.toString(), "$TAG onServiceDisconnected")
             }
+
         }
 
         try {
-            context.bindService(Intent(context, DataLayerListenerServiceMobile::class.java), connection, Context.BIND_AUTO_CREATE)
+            val created = context.bindService(Intent(context, DataLayerListenerServiceMobile::class.java), connection, 0) //Context.BIND_AUTO_CREATE
+            Log.d(LTag.WEAR.toString(), "$TAG try to connect with DataLayerListenerServiceMobile, created = $created")
+
         } catch (ignored: RuntimeException) {
+            Log.d(LTag.WEAR.toString(), "$TAG catch DataLayerListenerServiceMobile connection error: ${ignored.message}")
             // This is probably a broadcast receiver context even though we are calling getApplicationContext().
             // Just call startForegroundService instead since we cannot bind a service to a
             // broadcast receiver context. The service also have to call startForeground in
@@ -57,6 +68,7 @@ class DataLayerListenerServiceMobileHelper @Inject constructor(
     }
 
     fun stopService(context: Context) {
+        Log.d(LTag.WEAR.toString(), "$TAG stopService")
         context.stopService(Intent(context, DataLayerListenerServiceMobile::class.java))
     }
 }

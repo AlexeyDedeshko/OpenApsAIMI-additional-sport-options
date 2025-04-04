@@ -28,6 +28,7 @@ enum class LTag(val tag: String, val defaultValue: Boolean = true, val requiresR
     TIDEPOOL("TIDEPOOL"),
     UI("UI", defaultValue = false),
     WEAR("WEAR"),
+    WEARPLUGIN("WEARPLUGIN"),
     WIDGET("WIDGET"),
     WORKER("WORKER"),
     XDRIP("XDRIP")

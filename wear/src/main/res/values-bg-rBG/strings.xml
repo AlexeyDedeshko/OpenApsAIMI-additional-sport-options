@@ -68,7 +68,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Погледнете в конфигурацията, моля.</string>
     <string name="menu_tempt">Врем цел</string>
     <string name="menu_wizard">Калкулатор</string>
-    <string name="menu_wizard_short">Калк</string>
+    <string name="menu_calc">Калк</string>
     <string name="menu_treatment">Лечение</string>
     <string name="menu_treatment_short">Лечение</string>
     <string name="menu_bolus">Болус</string>

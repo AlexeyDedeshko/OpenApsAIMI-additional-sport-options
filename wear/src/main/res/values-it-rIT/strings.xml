@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Controlla configurazione watchface.</string>
     <string name="menu_tempt">TempT</string>
     <string name="menu_wizard">Calcolatore</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Trattamento</string>
     <string name="menu_treatment_short">Tratt</string>
     <string name="menu_bolus">Bolo</string>

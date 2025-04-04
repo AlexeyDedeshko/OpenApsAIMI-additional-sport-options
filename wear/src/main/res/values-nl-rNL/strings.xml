@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Kijk naar de Watchface configuratie, alsjeblieft.</string>
     <string name="menu_tempt">TijdStreefd</string>
     <string name="menu_wizard">Calculator</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Behandeling</string>
     <string name="menu_treatment_short">Behandel</string>
     <string name="menu_bolus">Bolus</string>

@@ -102,7 +102,7 @@ enum class BooleanKey(
     XdripSendStatus("xdrip_send_status", false),
     XdripSendDetailedIob("xdripstatus_detailediob", true, defaultedBySM = true, hideParentScreenIfHidden = true),
     XdripSendBgi("xdripstatus_showbgi", true, defaultedBySM = true, hideParentScreenIfHidden = true),
-    WearControl("wearcontrol", defaultValue = false),
+    WearControl("wearcontrol", defaultValue = true), // false
     WearWizardBg("wearwizard_bg", defaultValue = true, dependency = WearControl, hideParentScreenIfHidden = true),
     WearWizardTt("wearwizard_tt", defaultValue = false, dependency = WearControl, hideParentScreenIfHidden = true),
     WearWizardTrend("wearwizard_trend", defaultValue = false, dependency = WearControl, hideParentScreenIfHidden = true),

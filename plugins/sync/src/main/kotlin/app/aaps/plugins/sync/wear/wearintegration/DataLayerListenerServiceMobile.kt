@@ -46,7 +46,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import javax.inject.Inject
 
 class DataLayerListenerServiceMobile : WearableListenerService() {
-
+    val TAG = "DataLayerListenerServiceMobile"
     @Inject lateinit var aapsLogger: AAPSLogger
     @Inject lateinit var fabricPrivacy: FabricPrivacy
     @Inject lateinit var profileFunction: ProfileFunction
@@ -60,8 +60,9 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
     @Inject lateinit var rxBus: RxBus
     @Inject lateinit var aapsSchedulers: AapsSchedulers
 
-    inner class LocalBinder : Binder() {
+    val binder: LocalBinder = LocalBinder()
 
+    inner class LocalBinder : Binder() {
         fun getService(): DataLayerListenerServiceMobile = this@DataLayerListenerServiceMobile
     }
 
@@ -82,26 +83,33 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
     override fun onCreate() {
         AndroidInjection.inject(this)
         super.onCreate()
-        aapsLogger.debug(LTag.WEAR, "onCreate")
+        aapsLogger.debug(LTag.WEAR, "$TAG onCreate")
         handler.post { updateTranscriptionCapability() }
+
         disposable += rxBus
             .toObservable(EventMobileToWear::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe { sendMessage(rxPath, it.payload.serialize()) }
+
         disposable += rxBus
             .toObservable(EventMobileDataToWear::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe { sendMessage(rxDataPath, it.payload) }
     }
 
+    // override fun onBind(intent: Intent?): IBinder? {
+    //     return binder
+    // }
+
     override fun onCapabilityChanged(p0: CapabilityInfo) {
         super.onCapabilityChanged(p0)
         handler.post { updateTranscriptionCapability() }
-        aapsLogger.debug(LTag.WEAR, "onCapabilityChanged:  ${p0.name} ${p0.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
+        aapsLogger.debug(LTag.WEAR, "$TAG onCapabilityChanged:  ${p0.name} ${p0.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        aapsLogger.debug(LTag.WEAR, "$TAG onDestroy")
         disposable.clear()
         scope.cancel()
     }
@@ -109,18 +117,18 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
     @Suppress("ControlFlowWithEmptyBody", "UNUSED_EXPRESSION")
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         //aapsLogger.debug(LTag.WEAR, "onDataChanged")
-
         if (wearPlugin.isEnabled()) {
             dataEvents.forEach { event ->
                 if (event.type == DataEvent.TYPE_CHANGED) {
                     val path = event.dataItem.uri.path
 
-                    aapsLogger.debug(LTag.WEAR, "onDataChanged: Path: $path, EventDataItem=${event.dataItem}")
+                    aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, EventDataItem=${event.dataItem}")
                     try {
                         when (path) {
                         }
+
                     } catch (exception: Exception) {
-                        aapsLogger.error(LTag.WEAR, "Message failed", exception)
+                        aapsLogger.error(LTag.WEAR, "$TAG Message failed", exception)
                     }
                 }
             }
@@ -135,13 +143,13 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
         if (wearPlugin.isEnabled()) {
             when (messageEvent.path) {
                 rxPath     -> {
-                    aapsLogger.debug(LTag.WEAR, "onMessageReceived rxPath: ${String(messageEvent.data)}")
+                    aapsLogger.debug(LTag.WEAR, "$TAG onMessageReceived rxPath: ${String(messageEvent.data)}")
                     val command = EventData.deserialize(String(messageEvent.data))
                     rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
                 }
 
                 rxDataPath -> {
-                    aapsLogger.debug(LTag.WEAR, "onMessageReceived rxDataPath: ${messageEvent.data.size}")
+                    aapsLogger.debug(LTag.WEAR, "$TAG onMessageReceived rxDataPath: ${messageEvent.data.size}")
                     val command = EventData.deserializeByte(messageEvent.data)
                     rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
                 }
@@ -161,9 +169,10 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
             transcriptionNodeId = bestNode?.id
             wearPlugin.connectedDevice = bestNode?.displayName ?: rh.gs(R.string.no_watch_connected)
             rxBus.send(EventWearUpdateGui())
-            aapsLogger.debug(LTag.WEAR, "Selected node: ${bestNode?.displayName} $transcriptionNodeId")
+            aapsLogger.debug(LTag.WEAR, "$TAG Selected node: ${bestNode?.displayName} $transcriptionNodeId")
             rxBus.send(EventMobileToWear(EventData.ActionPing(System.currentTimeMillis())))
             rxBus.send(EventData.ActionResendData("WatchUpdaterService"))
+
         } catch (e: Exception) {
             fabricPrivacy.logCustom("WearOS_unsupported")
         }
@@ -198,13 +207,13 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
     }
 
     private fun sendMessage(path: String, data: String?) {
-        aapsLogger.debug(LTag.WEAR, "sendMessage: $path $data")
+        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path $data")
         transcriptionNodeId?.also { nodeId ->
             messageClient
                 .sendMessage(nodeId, path, data?.toByteArray() ?: byteArrayOf()).apply {
                     addOnSuccessListener { }
                     addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "sendMessage:  $path failure")
+                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure")
                     }
                 }
         }
@@ -217,7 +226,7 @@ class DataLayerListenerServiceMobile : WearableListenerService() {
                 .sendMessage(nodeId, path, data).apply {
                     addOnSuccessListener { }
                     addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "sendMessage:  $path failure ${data.size}")
+                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure ${data.size}")
                     }
                 }
         }

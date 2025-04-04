@@ -7,6 +7,7 @@ import app.aaps.wear.interaction.actions.BackgroundActionActivity
 import app.aaps.wear.interaction.actions.BolusActivity
 import app.aaps.wear.interaction.actions.CarbActivity
 import app.aaps.wear.interaction.actions.ECarbActivity
+import app.aaps.wear.interaction.actions.ExerciseModeActivity
 import app.aaps.wear.interaction.actions.FillActivity
 import app.aaps.wear.interaction.actions.ProfileSwitchActivity
 import app.aaps.wear.interaction.actions.QuickSnoozeActivity
@@ -39,6 +40,7 @@ abstract class WearActivitiesModule {
     @ContributesAndroidInjector abstract fun contributesECarbActivity(): ECarbActivity
     @ContributesAndroidInjector abstract fun contributesFillActivity(): FillActivity
     @ContributesAndroidInjector abstract fun contributesTempTargetActivity(): TempTargetActivity
+    @ContributesAndroidInjector abstract fun contributesExerciseModeActivity(): ExerciseModeActivity
     @ContributesAndroidInjector abstract fun contributesTreatmentActivity(): TreatmentActivity
     @ContributesAndroidInjector abstract fun contributesWizardActivity(): WizardActivity
 

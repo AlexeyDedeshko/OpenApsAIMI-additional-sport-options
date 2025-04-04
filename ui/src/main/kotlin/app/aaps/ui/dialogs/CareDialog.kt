@@ -263,7 +263,7 @@ class CareDialog : DialogFragmentWithDate() {
 
         // from ProfileSwitchDialog
         binding.percentage.setParams(
-            savedInstanceState?.getDouble("percentage") ?: SPORT_PERCENTAGE_LIGHT, // 100
+            savedInstanceState?.getDouble("percentage") ?: SPORT_PERCENTAGE_LIGHT, // 80%
             Constants.CPP_MIN_PERCENTAGE.toDouble(),
             Constants.CPP_MAX_PERCENTAGE.toDouble(),
             5.0,
@@ -546,7 +546,18 @@ class CareDialog : DialogFragmentWithDate() {
             // from ProfileSwitchDialog, pack activity?.let {... into validity checking
             val ps = profileFunction.buildProfileSwitch2(profileStore, profileName, duration, percent, timeShift, eventTime) ?: return@let
 
-            val validity = ProfileSealed.PS(ps, activePlugin).isValid(rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch), activePlugin.activePump, config, rh, rxBus, hardLimits, false)
+            val validity = ProfileSealed
+                .PS(ps, activePlugin)
+                .isValid(
+                    rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch),
+                    activePlugin.activePump,
+                    config,
+                    rh,
+                    rxBus,
+                    hardLimits,
+                    false
+                )
+
             if (validity.isValid) {
                 OKDialog.showConfirmation(activity, rh.gs(event), HtmlHelper.fromHtml(Joiner.on("<br/>").join(actions)), {
                     // old method
@@ -581,7 +592,10 @@ class CareDialog : DialogFragmentWithDate() {
                             )
                         )
                     ) {
-                        if (percent == 90 && duration == 10) sp.putBoolean(app.aaps.core.utils.R.string.key_objectiveuseprofileswitch, true)
+                        if (percent == 90 && duration == 10) {
+                            sp.putBoolean(app.aaps.core.utils.R.string.key_objectiveuseprofileswitch, true)
+                        }
+
                         if (isTT) {
                             disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
                                 TT(
@@ -591,15 +605,18 @@ class CareDialog : DialogFragmentWithDate() {
                                     lowTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits()),
                                     highTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits())
                                 ),
+
                                 action = Action.TT,
                                 source = Sources.TTDialog,
                                 note = null,
+
                                 listValues = listOf(
                                     ValueWithUnit.Timestamp(eventTime).takeIf { eventTimeChanged },
                                     ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
                                     ValueWithUnit.fromGlucoseUnit(target, units),
                                     ValueWithUnit.Minute(duration)
                                 )
+
                             ).subscribe()
 
                         } else { // cancel temporary target if "tt" (Activity checkbox) not checked

@@ -12,6 +12,12 @@
             android:name=".nsclientV3.services.NSClientV3Service"
             android:enabled="true"
             android:exported="false" />
+
+        <activity
+            android:name="app.aaps.plugins.sync.wear.activities.CwfInfosActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".openhumans.ui.OHLoginActivity"
             android:launchMode="singleTop"
@@ -29,6 +35,56 @@
                     android:scheme="androidaps" />
             </intent-filter>
         </activity>
+
+<!--        android:process=":remote"
+android:enabled="true"
+"app.aaps.plugins.sync"-->
+        <service
+            android:name=".wear.wearintegration.DataLayerListenerServiceMobile"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+
+<!--            <intent-filter>-->
+<!--                &lt;!&ndash; These are the interfaces supported by the service,-->
+<!--                which-->
+<!--                you can bind to. &ndash;&gt;-->
+<!--                <action android:name="com.service.test.IAYmsgService" />-->
+<!--                <action android:name="com.service.test.REMOTE_SERVICE" />-->
+<!--            </intent-filter>-->
+
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
+                <data
+                    android:host="*"
+                    android:scheme="wear" />
+            </intent-filter>
+
+            <intent-filter>
+                <!-- listeners receive events that match the action and data filters -->
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+
+                <data
+                    android:host="*"
+                    android:pathPrefix="@string/path_rx_bridge"
+                    android:scheme="wear" />
+            </intent-filter>
+
+            <intent-filter>
+                <!-- listeners receive events that match the action and data filters -->
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+
+                <data
+                    android:host="*"
+                    android:pathPrefix="@string/path_rx_data_bridge"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
 
     </application>
 

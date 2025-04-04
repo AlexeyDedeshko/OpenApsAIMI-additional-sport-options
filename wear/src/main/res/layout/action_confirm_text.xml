@@ -24,7 +24,6 @@
                 android:textAppearance="@style/TextAppearance.Wearable.Small"
                 android:textColor="@color/white"
                 tools:text="message" />
-
         </androidx.core.widget.NestedScrollView>
 
     </FrameLayout>

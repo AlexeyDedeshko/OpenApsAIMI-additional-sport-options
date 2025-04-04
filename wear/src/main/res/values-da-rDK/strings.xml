@@ -75,7 +75,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Se venligst på Watchface-konfigurationen.</string>
     <string name="menu_tempt">MidlertidigMål</string>
     <string name="menu_wizard">Beregner</string>
-    <string name="menu_wizard_short">Beregn</string>
+    <string name="menu_calc">Beregn</string>
     <string name="menu_treatment">Behandling</string>
     <string name="menu_treatment_short">Behandl</string>
     <string name="menu_bolus">Bolus</string>

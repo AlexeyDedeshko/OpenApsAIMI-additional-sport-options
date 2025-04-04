@@ -512,6 +512,10 @@
             android:name=".interaction.actions.TempTargetActivity"
             android:exported="true"
             android:label="@string/menu_tempt" />
+        <activity
+            android:name=".interaction.actions.ExerciseModeActivity"
+            android:exported="true"
+            android:label="@string/menu_exercise_mode" />
 
         <activity
             android:name=".interaction.actions.BackgroundActionActivity"

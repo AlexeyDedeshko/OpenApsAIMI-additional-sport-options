@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.os.Vibrator
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -25,22 +26,30 @@ import kotlin.math.roundToInt
 
 class AcceptActivity : ViewSelectorActivity() {
 
+    val TAG = "AcceptActivity"
+
     var message = ""
     var actionKey = ""
     private var dismissThread: DismissThread? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate")
         dismissThread = DismissThread()
         dismissThread?.start()
+
         val extras = intent.extras
         message = extras?.getString(DataLayerListenerServiceWear.KEY_MESSAGE, "") ?: ""
         actionKey = extras?.getString(DataLayerListenerServiceWear.KEY_ACTION_DATA, "") ?: ""
+        Log.d(TAG, "onCreate, message = $message, actionKey = $actionKey")
         if (message.isEmpty()) {
+            Log.d(TAG, "onCreate, message.isEmpty, so return")
             finish()
             return
         }
+
         setAdapter(MyGridViewPagerAdapter())
+
         val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
         val vibratePattern = longArrayOf(0, 100, 50, 100, 50)
         vibrator.vibrate(vibratePattern, -1)
@@ -51,6 +60,7 @@ class AcceptActivity : ViewSelectorActivity() {
         finish()
     }
 
+
     private inner class MyGridViewPagerAdapter : GridPagerAdapterNonDeprecated() {
 
         override fun getColumnCount(arg0: Int): Int = 2
@@ -58,6 +68,7 @@ class AcceptActivity : ViewSelectorActivity() {
 
         override fun instantiateItem(container: ViewGroup, row: Int, col: Int): View = when (col) {
             0    -> {
+                Log.d(TAG, "instantiateItem col = $col")
                 val view = LayoutInflater.from(applicationContext).inflate(R.layout.action_confirm_text, container, false)
                 val textView = view.findViewById<TextView>(R.id.message)
                 val scrollView = view.findViewById<View>(R.id.message_scroll)
@@ -82,6 +93,7 @@ class AcceptActivity : ViewSelectorActivity() {
             }
 
             else -> {
+                Log.d(TAG, "instantiateItem col = $col")
                 val view = LayoutInflater.from(applicationContext).inflate(R.layout.action_confirm_ok, container, false)
                 val confirmButton = view.findViewById<ImageView>(R.id.confirmbutton)
                 confirmButton.setOnClickListener {

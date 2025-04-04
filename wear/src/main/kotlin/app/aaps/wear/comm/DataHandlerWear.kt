@@ -49,7 +49,7 @@ class DataHandlerWear @Inject constructor(
     private val aapsLogger: AAPSLogger,
     private val persistence: Persistence
 ) {
-
+    private val TAG = "DataHandlerWear"
     private val disposable = CompositeDisposable()
 
     init {
@@ -64,12 +64,14 @@ class DataHandlerWear @Inject constructor(
                 aapsLogger.debug(LTag.WEAR, "Ping received from ${it.sourceNodeId}")
                 rxBus.send(EventWearToMobile(EventData.ActionPong(System.currentTimeMillis(), Build.VERSION.SDK_INT)))
             }
+
         disposable += rxBus
             .toObservable(EventData.ConfirmAction::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe {
                 aapsLogger.debug(LTag.WEAR, "ConfirmAction received from ${it.sourceNodeId}")
                 context.startActivity(Intent(context, AcceptActivity::class.java).apply {
+                    aapsLogger.debug(LTag.WEAR, "ConfirmAction bundle: KEY_TITLE = ${it.title}, KEY_MESSAGE = ${it.message}, KEY_ACTION_DATA = ${it.returnCommand?.serialize()}")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtras(
                         Bundle().also { bundle ->
@@ -80,6 +82,7 @@ class DataHandlerWear @Inject constructor(
                     )
                 })
             }
+
         disposable += rxBus
             .toObservable(EventData.CancelNotification::class.java)
             .observeOn(aapsSchedulers.io)
@@ -105,7 +108,8 @@ class DataHandlerWear @Inject constructor(
             .toObservable(EventData.ActionProfileSwitchOpenActivity::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe { event ->
-                aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchOpenActivity received from ${event.sourceNodeId}")
+                aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchOpenActivity received from ${event.sourceNodeId}, " +
+                    " event.percentage = ${ event.percentage}, event.timeShift = ${event.timeShift}")
                 context.startActivity(Intent(context, ProfileSwitchActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtras(Bundle().also { bundle ->

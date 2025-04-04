@@ -45,4 +45,8 @@ Google Pixel Watch: 1.2", 450 x 450 px =  192 dp
     <dimen name="watch_face_large_time_period_text_size">11sp</dimen>
     <dimen name="watch_face_large_status_size">14sp</dimen>
 
+    <dimen name="watch_duty_percentage_circle_text_size">22sp</dimen>
+    <dimen name="watch_duty_percentage_circle_radius">64dp</dimen>
+    <dimen name="watch_duty_percentage_circle_size">48dp</dimen> <!-- 48dp -->
+
 </resources>

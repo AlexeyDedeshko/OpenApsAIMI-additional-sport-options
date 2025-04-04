@@ -145,4 +145,5 @@
         android:key="more_settings"
         android:summary="Input Design"
         android:title="@string/pref_moreWatchfaceSettings" />
+
 </PreferenceScreen>

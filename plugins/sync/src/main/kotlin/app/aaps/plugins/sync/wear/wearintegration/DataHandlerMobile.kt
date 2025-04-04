@@ -2,6 +2,7 @@ package app.aaps.plugins.sync.wear.wearintegration
 
 import android.app.NotificationManager
 import android.content.Context
+import android.util.Log
 import app.aaps.core.data.configuration.Constants
 import app.aaps.core.data.iob.InMemoryGlucoseValue
 import app.aaps.core.data.model.BCR
@@ -124,7 +125,7 @@ class DataHandlerMobile @Inject constructor(
     private val importExportPrefs: ImportExportPrefs,
     private val decimalFormatter: DecimalFormatter
 ) {
-
+    final val TAG = "DataHandlerMobile"
     @Inject lateinit var automation: Automation
     private val disposable = CompositeDisposable()
 
@@ -137,61 +138,78 @@ class DataHandlerMobile @Inject constructor(
             .toObservable(EventData.ActionPong::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "Pong received from ${it.sourceNodeId}")
-                           fabricPrivacy.logCustom("WearOS_${it.apiLevel}")
-                       }, fabricPrivacy::logException)
+                   aapsLogger.debug(LTag.WEAR, "Pong received from ${it.sourceNodeId}")
+                   fabricPrivacy.logCustom("WearOS_${it.apiLevel}")
+               }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.CancelBolus::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "CancelBolus received from ${it.sourceNodeId}")
-                           activePlugin.activePump.stopBolusDelivering()
-                       }, fabricPrivacy::logException)
+                   aapsLogger.debug(LTag.WEAR, "CancelBolus received from ${it.sourceNodeId}")
+                   activePlugin.activePump.stopBolusDelivering()
+               }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.OpenLoopRequestConfirmed::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "OpenLoopRequestConfirmed received from ${it.sourceNodeId}")
-                           loop.acceptChangeRequest()
-                           (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(Constants.notificationID)
-                       }, fabricPrivacy::logException)
+                   aapsLogger.debug(LTag.WEAR, "OpenLoopRequestConfirmed received from ${it.sourceNodeId}")
+                   loop.acceptChangeRequest()
+                   (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(Constants.notificationID)
+               }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionResendData::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ResendData received from ${it.sourceNodeId}")
-                           resendData(it.from)
-                       }, fabricPrivacy::logException)
+                aapsLogger.debug(LTag.WEAR, "ResendData received from ${it.sourceNodeId}")
+                resendData(it.from)
+            },  fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionPumpStatus::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionPumpStatus received from ${it.sourceNodeId}")
-                           rxBus.send(
-                               EventMobileToWear(
-                                   EventData.ConfirmAction(
-                                       rh.gs(R.string.pump_status).uppercase(),
-                                       activePlugin.activePump.shortStatus(false),
-                                       returnCommand = null
-                                   )
-                               )
-                           )
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "$TAG; ActionPumpStatus received from ${it.sourceNodeId}, send message ConfirmAction")
+               rxBus.send(
+                   EventMobileToWear(
+                       EventData.ConfirmAction(
+                           rh.gs(R.string.pump_status).uppercase(),
+                           activePlugin.activePump.shortStatus(false),
+                           returnCommand = null
+                       )
+                   )
+               )
+           }, fabricPrivacy::logException)
+
+        disposable += rxBus // test wear
+            .toObservable(EventData.ActionPumpConnect::class.java)
+            .observeOn(aapsSchedulers.io)
+            .subscribe({
+               aapsLogger.debug(LTag.WEAR, "$TAG; ActionPumpConnect received from ${it.sourceNodeId}, send message ConfirmAction")
+               rxBus.send(
+                   EventMobileToWear(
+                       EventData.ConfirmAction(
+                           rh.gs(R.string.pump_connect).uppercase(), // status_pump_connection
+                           activePlugin.activePump.shortStatus(false),
+                           returnCommand = null
+                       )
+                   )
+               )
+           }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionLoopStatus::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionLoopStatus received from ${it.sourceNodeId}")
-                           rxBus.send(
-                               EventMobileToWear(
-                                   EventData.ConfirmAction(
-                                       rh.gs(R.string.loop_status).uppercase(),
-                                       "$targetsStatus\n\n$loopStatus\n\n$oAPSResultStatus",
-                                       returnCommand = null
-                                   )
-                               )
-                           )
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "ActionLoopStatus received from ${it.sourceNodeId}")
+               rxBus.send(
+                   EventMobileToWear(
+                       EventData.ConfirmAction(
+                           rh.gs(R.string.loop_status).uppercase(),
+                           "$targetsStatus\n\n$loopStatus\n\n$oAPSResultStatus",
+                           returnCommand = null
+                       )
+                   )
+               )
+           }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionTddStatus::class.java)
             .observeOn(aapsSchedulers.io)
@@ -199,48 +217,67 @@ class DataHandlerMobile @Inject constructor(
                 aapsLogger.debug(LTag.WEAR, "ActionTddStatus received from ${it.sourceNodeId}")
                 handleTddStatus()
             }
+
+        disposable += rxBus
+            .toObservable(EventData.ActionExerciseMode::class.java)
+            .observeOn(aapsSchedulers.io)
+            .subscribe({
+               aapsLogger.debug(LTag.WEAR, "ActionExerciseMode received $it from ${it.sourceNodeId}")
+               handleExerciseModeCommand(it)
+            }, fabricPrivacy::logException)
+        disposable += rxBus
+            .toObservable(EventData.ActionExerciseModeConfirmed::class.java)
+            .observeOn(aapsSchedulers.io)
+            .subscribe({
+               aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchConfirmed received $it from ${it.sourceNodeId}")
+               doExerciseMode(it)
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionProfileSwitchSendInitialData::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchSendInitialData received $it from ${it.sourceNodeId}")
-                           handleProfileSwitchSendInitialData()
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchSendInitialData received $it from ${it.sourceNodeId}")
+               handleProfileSwitchSendInitialData()
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionProfileSwitchPreCheck::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchPreCheck received $it from ${it.sourceNodeId}")
-                           handleProfileSwitchPreCheck(it)
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchPreCheck received $it from ${it.sourceNodeId}")
+               handleProfileSwitchPreCheck(it)
+            }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionProfileSwitchConfirmed::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchConfirmed received $it from ${it.sourceNodeId}")
-                           doProfileSwitch(it)
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchConfirmed received $it from ${it.sourceNodeId}")
+               doProfileSwitch(it)
+            }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionTempTargetPreCheck::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionTempTargetPreCheck received $it from ${it.sourceNodeId}")
-                           handleTempTargetPreCheck(it)
-                       }, fabricPrivacy::logException)
+               aapsLogger.debug(LTag.WEAR, "ActionTempTargetPreCheck received $it from ${it.sourceNodeId}")
+               handleTempTargetPreCheck(it)
+            }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionTempTargetConfirmed::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionTempTargetConfirmed received $it from ${it.sourceNodeId}")
-                           doTempTarget(it)
-                       }, fabricPrivacy::logException)
+                   aapsLogger.debug(LTag.WEAR, "ActionTempTargetConfirmed received $it from ${it.sourceNodeId}")
+                   doTempTarget(it)
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionBolusPreCheck::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           aapsLogger.debug(LTag.WEAR, "ActionBolusPreCheck received $it from ${it.sourceNodeId}")
-                           handleBolusPreCheck(it)
-                       }, fabricPrivacy::logException)
+                   aapsLogger.debug(LTag.WEAR, "ActionBolusPreCheck received $it from ${it.sourceNodeId}")
+                   handleBolusPreCheck(it)
+               }, fabricPrivacy::logException)
         disposable += rxBus
             .toObservable(EventData.ActionBolusConfirmed::class.java)
             .observeOn(aapsSchedulers.io)
@@ -287,6 +324,7 @@ class DataHandlerMobile @Inject constructor(
                            } else
                                doFillBolus(it.insulin)
                        }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionQuickWizardPreCheck::class.java)
             .observeOn(aapsSchedulers.io)
@@ -294,6 +332,7 @@ class DataHandlerMobile @Inject constructor(
                            aapsLogger.debug(LTag.WEAR, "ActionQuickWizardPreCheck received $it from ${it.sourceNodeId}")
                            handleQuickWizardPreCheck(it)
                        }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventData.ActionWizardPreCheck::class.java)
             .observeOn(aapsSchedulers.io)
@@ -665,7 +704,6 @@ class DataHandlerMobile @Inject constructor(
             sendError(rh.gs(R.string.no_active_profile))
             return
         }
-
     }
 
     private fun handleProfileSwitchPreCheck(command: EventData.ActionProfileSwitchPreCheck) {
@@ -690,6 +728,29 @@ class DataHandlerMobile @Inject constructor(
         )
     }
 
+    private fun handleExerciseModeCommand(action: EventData.ActionExerciseMode) {
+        Log.d(TAG, "handleExerciseModeCommand")
+        val title = rh.gs(app.aaps.core.ui.R.string.confirm).uppercase()
+        var message = "test"
+
+        // val presetIsMGDL = profileFunction.getUnits() == GlucoseUnit.MGDL
+        //
+        // val activityTTDuration = preferences.get(IntKey.OverviewActivityDuration)
+        // val activityTT = preferences.get(UnitDoubleKey.OverviewActivityTarget)
+        // val reason = rh.gs(app.aaps.core.ui.R.string.activity)
+        // message += rh.gs(R.string.wear_action_tempt_preset_message, reason, activityTT, activityTTDuration)
+
+        rxBus.send(
+            EventMobileToWear(
+                EventData.ConfirmAction(
+                    title,
+                    message,
+                    returnCommand = EventData.ActionExerciseModeConfirmed(/*presetIsMGDL, activityTTDuration, activityTT*/)
+                )
+            )
+        )
+    }
+
     private fun handleTempTargetPreCheck(action: EventData.ActionTempTargetPreCheck) {
         val title = rh.gs(app.aaps.core.ui.R.string.confirm).uppercase()
         var message = ""
@@ -703,7 +764,8 @@ class DataHandlerMobile @Inject constructor(
                 rxBus.send(
                     EventMobileToWear(
                         EventData.ConfirmAction(
-                            title, message,
+                            title,
+                            message,
                             returnCommand = EventData.ActionTempTargetConfirmed(presetIsMGDL, activityTTDuration, activityTT, activityTT)
                         )
                     )
@@ -784,6 +846,7 @@ class DataHandlerMobile @Inject constructor(
                     }
                     message += if (low == high) rh.gs(R.string.wear_action_tempt_manual_message, action.low, action.duration)
                     else rh.gs(R.string.wear_action_tempt_manual_range_message, action.low, action.high, action.duration)
+
                     rxBus.send(
                         EventMobileToWear(
                             EventData.ConfirmAction(
@@ -1228,7 +1291,8 @@ class DataHandlerMobile @Inject constructor(
     }
 
     private fun doTempTarget(command: EventData.ActionTempTargetConfirmed) {
-        if (command.duration != 0)
+        Log.d(TAG, "doTempTarget, command = $command")
+        if (command.duration != 0) {
             disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
                 temporaryTarget = TT(
                     timestamp = System.currentTimeMillis(),
@@ -1246,16 +1310,19 @@ class DataHandlerMobile @Inject constructor(
                     ValueWithUnit.fromGlucoseUnit(command.high, profileFunction.getUnits()).takeIf { command.low != command.high },
                     ValueWithUnit.Minute(command.duration)
                 )
+
             ).subscribe()
-        else
+
+        } else {
             disposable += persistenceLayer.cancelCurrentTemporaryTargetIfAny(
                 timestamp = dateUtil.now(),
                 action = Action.CANCEL_TT,
                 source = Sources.Wear,
                 note = null,
                 listValues = listOf(ValueWithUnit.TETTReason(TT.Reason.WEAR))
-            )
-                .subscribe()
+
+            ).subscribe()
+        }
     }
 
     private fun doBolus(amount: Double, carbs: Int, carbsTime: Long?, carbsDuration: Int, bolusCalculatorResult: BCR?, notes: String? = null) {
@@ -1346,6 +1413,10 @@ class DataHandlerMobile @Inject constructor(
                                 ValueWithUnit.Hour(duration).takeIf { duration != 0 })
         )
         doBolus(0.0, carbs, carbsTime, duration, null, notes)
+    }
+
+    private fun doExerciseMode(command: EventData.ActionExerciseModeConfirmed) {
+        Log.d(TAG, "doExerciseMode")
     }
 
     private fun doProfileSwitch(command: EventData.ActionProfileSwitchConfirmed) {

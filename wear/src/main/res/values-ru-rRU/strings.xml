@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Смотрите конфигурацию циферблата.</string>
     <string name="menu_tempt">ВЦ</string>
     <string name="menu_wizard">Калькулятор</string>
-    <string name="menu_wizard_short">Кальк</string>
+    <string name="menu_calc">Кальк</string>
     <string name="menu_treatment">Терапия</string>
     <string name="menu_treatment_short">Терап</string>
     <string name="menu_bolus">Болюс</string>
@@ -97,6 +97,7 @@
     <string name="quick_wizard_short">XL</string>
     <string name="action_duration">Длительность</string>
     <string name="action_tempt_confirmation">Запрошена временная цель</string>
+    <string name="action_exercise_mode_confirmation">Запрошен спортивный режим</string>
     <string name="action_quick_wizard_confirmation">Запрошен мастер настройки</string>
     <string name="action_treatment_confirmation">Запрошена терапия</string>
     <string name="action_bolus_confirmation">Запрошен болюс</string>

@@ -3,6 +3,7 @@ package app.aaps.wear.interaction.menus
 import android.os.Bundle
 import app.aaps.core.interfaces.rx.events.EventWearToMobile
 import app.aaps.core.interfaces.rx.weardata.EventData.ActionLoopStatus
+import app.aaps.core.interfaces.rx.weardata.EventData.ActionPumpConnect
 import app.aaps.core.interfaces.rx.weardata.EventData.ActionPumpStatus
 import app.aaps.core.interfaces.rx.weardata.EventData.ActionTddStatus
 import app.aaps.wear.R
@@ -18,6 +19,8 @@ class StatusMenuActivity : MenuListActivity() {
     override fun provideElements(): List<MenuItem> =
         ArrayList<MenuItem>().apply {
             add(MenuItem(R.drawable.ic_status, getString(R.string.status_pump)))
+            // test wear
+            add(MenuItem(R.drawable.ic_status, getString(R.string.connect_pump)))
             add(MenuItem(R.drawable.ic_loop_closed, getString(R.string.status_loop)))
             add(MenuItem(R.drawable.ic_tdd, getString(R.string.status_tdd)))
         }
@@ -25,7 +28,9 @@ class StatusMenuActivity : MenuListActivity() {
     override fun doAction(position: String) {
         when (position) {
             getString(R.string.status_pump) -> rxBus.send(EventWearToMobile(ActionPumpStatus(System.currentTimeMillis())))
-            getString(R.string.status_loop) -> rxBus.send(EventWearToMobile(ActionLoopStatus(System.currentTimeMillis())))
+            // test wear
+            getString(R.string.connect_pump) -> rxBus.send(EventWearToMobile(ActionPumpConnect(System.currentTimeMillis())))
+            getString(R.string.status_loop)  -> rxBus.send(EventWearToMobile(ActionLoopStatus(System.currentTimeMillis())))
             getString(R.string.status_tdd)  -> rxBus.send(EventWearToMobile(ActionTddStatus(System.currentTimeMillis())))
         }
     }

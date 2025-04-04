@@ -1,11 +1,13 @@
 package app.aaps.plugins.sync.wear
 
 import android.content.Context
+import android.util.Log
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceScreen
 import app.aaps.core.data.plugin.PluginType
 import app.aaps.core.interfaces.logging.AAPSLogger
+import app.aaps.core.interfaces.logging.LTag
 import app.aaps.core.interfaces.plugin.PluginBase
 import app.aaps.core.interfaces.plugin.PluginDescription
 import app.aaps.core.interfaces.resources.ResourceHelper
@@ -66,18 +68,21 @@ class WearPlugin @Inject constructor(
 
     override fun onStart() {
         super.onStart()
+        Log.d(LTag.WEARPLUGIN.toString(), "onStart")
         dataLayerListenerServiceMobileHelper.startService(context)
+
         disposable += rxBus
             .toObservable(EventDismissBolusProgressIfRunning::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ event: EventDismissBolusProgressIfRunning ->
-                           event.resultSuccess?.let {
-                               val status =
-                                   if (it) rh.gs(app.aaps.core.ui.R.string.success)
-                                   else rh.gs(R.string.no_success)
-                               if (isEnabled()) rxBus.send(EventMobileToWear(EventData.BolusProgress(percent = 100, status = status)))
-                           }
-                       }, fabricPrivacy::logException)
+                   event.resultSuccess?.let {
+                       val status =
+                           if (it) rh.gs(app.aaps.core.ui.R.string.success)
+                           else rh.gs(R.string.no_success)
+                       if (isEnabled()) rxBus.send(EventMobileToWear(EventData.BolusProgress(percent = 100, status = status)))
+                   }
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventOverviewBolusProgress::class.java)
             .observeOn(aapsSchedulers.io)
@@ -86,32 +91,36 @@ class WearPlugin @Inject constructor(
                                if (isEnabled()) rxBus.send(EventMobileToWear(EventData.BolusProgress(percent = event.percent, status = event.status)))
                            }
                        }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventPreferenceChange::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-                           dataHandlerMobile.resendData("EventPreferenceChange")
-                           checkCustomWatchfacePreferences()
-                       }, fabricPrivacy::logException)
+                   dataHandlerMobile.resendData("EventPreferenceChange")
+                   checkCustomWatchfacePreferences()
+               }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventAutosensCalculationFinished::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ dataHandlerMobile.resendData("EventAutosensCalculationFinished") }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventLoopUpdateGui::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({ dataHandlerMobile.resendData("EventLoopUpdateGui") }, fabricPrivacy::logException)
+
         disposable += rxBus
             .toObservable(EventWearUpdateGui::class.java)
             .observeOn(aapsSchedulers.main)
             .subscribe({
-                           it.customWatchfaceData?.let { cwf ->
-                               if (!it.exportFile) {
-                                   savedCustomWatchface = cwf
-                                   checkCustomWatchfacePreferences()
-                               }
-                           }
-                       }, fabricPrivacy::logException)
+               it.customWatchfaceData?.let { cwf ->
+                   if (!it.exportFile) {
+                       savedCustomWatchface = cwf
+                       checkCustomWatchfacePreferences()
+                   }
+               }
+           }, fabricPrivacy::logException)
     }
 
     fun checkCustomWatchfacePreferences() {

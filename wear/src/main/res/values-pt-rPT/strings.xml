@@ -73,7 +73,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Verifique a configuração do mostrador, por favor.</string>
     <string name="menu_tempt">AlvoT</string>
     <string name="menu_wizard">Calculadora</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Tratamento</string>
     <string name="menu_treatment_short">Tratar</string>
     <string name="menu_bolus">Bólus</string>

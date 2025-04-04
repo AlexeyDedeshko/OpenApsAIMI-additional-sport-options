@@ -63,7 +63,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">请查看手表表盘配置。</string>
     <string name="menu_tempt">临时目标</string>
     <string name="menu_wizard">计算器</string>
-    <string name="menu_wizard_short">计算</string>
+    <string name="menu_calc">计算</string>
     <string name="menu_treatment">治疗</string>
     <string name="menu_treatment_short">治疗</string>
     <string name="menu_bolus">大剂量</string>

@@ -70,7 +70,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">עיינו בהגדרות פני השעון בבקשה.</string>
     <string name="menu_tempt">מטרה זמנית</string>
     <string name="menu_wizard">מחשבון</string>
-    <string name="menu_wizard_short">מחשבון</string>
+    <string name="menu_calc">מחשבון</string>
     <string name="menu_treatment">טיפול</string>
     <string name="menu_treatment_short">טיפול</string>
     <string name="menu_bolus">בולוס</string>

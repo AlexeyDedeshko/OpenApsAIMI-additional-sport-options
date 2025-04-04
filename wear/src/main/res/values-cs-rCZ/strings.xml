@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Podívejte se na konfiguraci hodinek prosím.</string>
     <string name="menu_tempt">Dočasný cíl</string>
     <string name="menu_wizard">Kalkulačka</string>
-    <string name="menu_wizard_short">Kalk</string>
+    <string name="menu_calc">Kalk</string>
     <string name="menu_treatment">Ošetření</string>
     <string name="menu_treatment_short">Ošetř</string>
     <string name="menu_bolus">Bolus</string>

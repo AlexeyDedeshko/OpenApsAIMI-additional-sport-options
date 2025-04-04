@@ -74,7 +74,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Παρακαλώ, ελέγξτε τις ρυθμίσεις Watchface.</string>
     <string name="menu_tempt">Προσωρινός Στόχος</string>
     <string name="menu_wizard">Υπολογιστής</string>
-    <string name="menu_wizard_short">Υπολογ</string>
+    <string name="menu_calc">Υπολογ</string>
     <string name="menu_treatment">Θεραπεία</string>
     <string name="menu_treatment_short">Αντιμετώπιση-Θεραπεία</string>
     <string name="menu_bolus">Bolus</string>

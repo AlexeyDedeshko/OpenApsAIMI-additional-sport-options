@@ -56,6 +56,7 @@ import app.aaps.receivers.KeepAliveWorker
 import app.aaps.receivers.TimeDateOrTZChangeReceiver
 import app.aaps.ui.activityMonitor.ActivityMonitor
 import app.aaps.ui.widget.Widget
+import com.google.firebase.FirebaseApp
 import dagger.android.AndroidInjector
 import dagger.android.DaggerApplication
 import io.reactivex.rxjava3.disposables.CompositeDisposable
@@ -108,6 +109,9 @@ class MainApp : DaggerApplication() {
         aapsLogger.debug("onCreate - début")
         copyModelToInternalStorage(this)
         aapsLogger.debug("onCreate - après copyModelToFileSystem")
+
+        // // initialize firebase:
+        // FirebaseApp.initializeApp(applicationContext)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(processLifecycleListener.get())
         scope.launch {

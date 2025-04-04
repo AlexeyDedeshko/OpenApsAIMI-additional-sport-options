@@ -21,13 +21,13 @@ class ActionSource @Inject constructor(context: Context, sp: SP, aapsLogger: AAP
 
     override fun getActions(resources: Resources): List<StaticAction> {
         return listOf(
-            StaticAction(
+            StaticAction( // Кальк
                 settingName = "wizard",
-                buttonText = resources.getString(R.string.menu_wizard_short),
+                buttonText = resources.getString(R.string.menu_calc), // was "menu_wizard_short"
                 iconRes = R.drawable.ic_calculator_green,
                 activityClass = WizardActivity::class.java.name,
             ),
-            StaticAction(
+            StaticAction( // Терап
                 settingName = "treatment",
                 buttonText = resources.getString(R.string.menu_treatment_short),
                 iconRes = R.drawable.ic_bolus_carbs,
@@ -45,13 +45,13 @@ class ActionSource @Inject constructor(context: Context, sp: SP, aapsLogger: AAP
                 iconRes = R.drawable.ic_carbs_orange,
                 activityClass = CarbActivity::class.java.name,
             ),
-            StaticAction(
+            StaticAction( // Растянутые
                 settingName = "ecarbs",
                 buttonText = resources.getString(R.string.action_ecarbs),
                 iconRes = R.drawable.ic_carbs_orange,
                 activityClass = ECarbActivity::class.java.name,
             ),
-            StaticAction(
+            StaticAction( // ВЦ // Временная цель
                 settingName = "temp_target",
                 buttonText = resources.getString(R.string.menu_tempt),
                 iconRes = R.drawable.ic_temptarget_flat,

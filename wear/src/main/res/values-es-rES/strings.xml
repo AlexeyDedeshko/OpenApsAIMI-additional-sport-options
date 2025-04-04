@@ -81,7 +81,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">Mira en la configuración de la esfera del reloj, por favor</string>
     <string name="menu_tempt">ObjetivoT</string>
     <string name="menu_wizard">Calculadora</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">Tratamiento</string>
     <string name="menu_treatment_short">Trata</string>
     <string name="menu_bolus">Bolo</string>

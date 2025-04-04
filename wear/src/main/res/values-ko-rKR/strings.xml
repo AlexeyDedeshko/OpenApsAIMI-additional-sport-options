@@ -77,7 +77,7 @@
     <string name="pref_lookInYourWatchfaceConfiguration">워치페이스 설정을 확인하십시오.</string>
     <string name="menu_tempt">임시목표</string>
     <string name="menu_wizard">계산기</string>
-    <string name="menu_wizard_short">Calc</string>
+    <string name="menu_calc">Calc</string>
     <string name="menu_treatment">관리</string>
     <string name="menu_treatment_short">처치</string>
     <string name="menu_bolus">Bolus</string>

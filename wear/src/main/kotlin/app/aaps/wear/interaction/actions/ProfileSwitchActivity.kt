@@ -22,6 +22,7 @@ class ProfileSwitchActivity : ViewSelectorActivity() {
     var editTimeshift: PlusMinusEditText? = null
     var percentage = -1
     var timeshift = -25
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         percentage = intent.extras?.getInt("percentage", -1) ?: -1
@@ -38,6 +39,7 @@ class ProfileSwitchActivity : ViewSelectorActivity() {
         super.onPause()
         finish()
     }
+
 
     private inner class MyGridViewPagerAdapter : GridPagerAdapterNonDeprecated() {
 
@@ -70,7 +72,10 @@ class ProfileSwitchActivity : ViewSelectorActivity() {
                 confirmButton.setOnClickListener {
                     // check if it can happen that the fragment is never created that hold data?
                     // (you have to swipe past them anyways - but still)
-                    val ps = ActionProfileSwitchPreCheck(SafeParse.stringToInt(editTimeshift?.editText?.text.toString()), SafeParse.stringToInt(editPercentage?.editText?.text.toString()))
+                    val ps = ActionProfileSwitchPreCheck(
+                        SafeParse.stringToInt(editTimeshift?.editText?.text.toString()),
+                        SafeParse.stringToInt(editPercentage?.editText?.text.toString())
+                    )
                     rxBus.send(EventWearToMobile(ps))
                     showToast(this@ProfileSwitchActivity, R.string.action_profile_switch_confirmation)
                     finishAffinity()

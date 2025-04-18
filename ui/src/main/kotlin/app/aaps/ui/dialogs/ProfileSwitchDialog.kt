@@ -224,7 +224,11 @@ class ProfileSwitchDialog : DialogFragmentWithDate() {
 
             val validity = ProfileSealed.PS(ps, activePlugin).isValid(rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch), activePlugin.activePump, config, rh, rxBus, hardLimits, false)
             if (validity.isValid) {
-                OKDialog.showConfirmation(activity, rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch), HtmlHelper.fromHtml(Joiner.on("<br/>").join(actions)), {
+                OKDialog.showConfirmation(
+                    activity,
+                    rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch),
+                    HtmlHelper.fromHtml(Joiner.on("<br/>").join(actions)), {
+                    // OK Runnable
                     if (profileFunction.createProfileSwitch(
                             profileStore = profileStore,
                             profileName = profileName,
@@ -244,7 +248,10 @@ class ProfileSwitchDialog : DialogFragmentWithDate() {
                             )
                         )
                     ) {
-                        if (percent == 90 && duration == 10) sp.putBoolean(app.aaps.core.utils.R.string.key_objectiveuseprofileswitch, true)
+                        if (percent == 90 && duration == 10) {
+                            sp.putBoolean(app.aaps.core.utils.R.string.key_objectiveuseprofileswitch, true)
+                        }
+
                         if (isTT) {
                             disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
                                 TT(

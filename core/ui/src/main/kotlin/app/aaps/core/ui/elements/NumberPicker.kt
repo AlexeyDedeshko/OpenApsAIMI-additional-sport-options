@@ -31,10 +31,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.round
 
 @SuppressLint("ClickableViewAccessibility")
-open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearLayout(context, attrs), View.OnKeyListener, OnTouchListener, View.OnClickListener {
+open class NumberPicker(context: Context, attrs: AttributeSet? = null)
+    : LinearLayout(context, attrs), View.OnKeyListener, OnTouchListener, View.OnClickListener {
 
     fun interface OnValueChangedListener {
-
         fun onValueChanged(value: Double)
     }
 
@@ -81,11 +81,12 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
         }
         return result
     }
-    private inner class UpdateCounterTask(private val mInc: Boolean) : Runnable {
 
+    private inner class UpdateCounterTask(private val mInc: Boolean) : Runnable {
         private var repeated = 0
         private var multiplier = 1
         private val doubleLimit = 5
+
         override fun run() {
             val msg = Message()
             if (repeated % doubleLimit == 0) multiplier *= 2
@@ -129,6 +130,7 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
         binding.plusButton.setOnTouchListener(this)
         binding.plusButton.setOnKeyListener(this)
         binding.plusButton.setOnClickListener(this)
+
         setTextWatcher(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
@@ -140,11 +142,13 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
                 binding.textInputLayout.error = if (inValid) "invalid" else null
             }
         })
+
         binding.editText.setOnFocusChangeListener { _: View?, hasFocus: Boolean ->
             focused = hasFocus
             if (!focused) value // check min/max
             updateEditText()
         }
+
         updateA11yDescription()
     }
 
@@ -209,7 +213,9 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
         }
         setParams(initValue, minValue, maxValue, step, formatter, allowZero, okButton)
         watcher = textWatcher
-        if (textWatcher != null) binding.editText.addTextChangedListener(textWatcher)
+        if (textWatcher != null) {
+            binding.editText.addTextChangedListener(textWatcher)
+        }
     }
 
     fun setParams(initValue: Double, minValue: Double, maxValue: Double, step: Double, formatter: NumberFormat?, allowZero: Boolean, okButton: Button?) {
@@ -222,10 +228,14 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
         callValueChangedListener()
         this.okButton = okButton
         binding.editText.keyListener = DigitsKeyListenerWithComma.getInstance(minValue < 0, step != round(step))
-        if (watcher != null) binding.editText.removeTextChangedListener(watcher)
+        if (watcher != null) {
+            binding.editText.removeTextChangedListener(watcher)
+        }
         updateA11yDescription()
         updateEditText()
-        if (watcher != null) binding.editText.addTextChangedListener(watcher)
+        if (watcher != null) {
+            binding.editText.addTextChangedListener(watcher)
+        }
     }
 
     var value: Double
@@ -240,6 +250,7 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
             }
             return currentValue
         }
+
         set(value) {
             if (watcher != null) binding.editText.removeTextChangedListener(watcher)
             currentValue = value
@@ -282,7 +293,12 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
     }
 
     protected open fun updateEditText() {
-        if (currentValue == 0.0 && !allowZero) binding.editText.setText("") else binding.editText.setText(formatter?.format(currentValue))
+        if (currentValue == 0.0 && !allowZero) {
+            binding.editText.setText("")
+
+        } else {
+            binding.editText.setText(formatter?.format(currentValue))
+        }
     }
 
     private fun callValueChangedListener() {
@@ -344,8 +360,8 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
         return false
     }
 
-    companion object {
 
+    companion object {
         private const val MSG_INC = 0
         private const val MSG_DEC = 1
     }
@@ -356,8 +372,8 @@ open class NumberPicker(context: Context, attrs: AttributeSet? = null) : LinearL
             attrs,
             R.styleable.NumberPicker,
             0, 0
-        ).apply {
 
+        ).apply {
             try {
                 mCustomContentDescription = getString(R.styleable.NumberPicker_customContentDescription)
             } finally {

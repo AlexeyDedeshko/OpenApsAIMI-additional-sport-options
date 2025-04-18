@@ -67,7 +67,7 @@ class ExerciseModeActivity : ViewSelectorActivity() {
                 // val viewAdapter = EditPlusMinusViewAdapter.getViewAdapter(sp, applicationContext, container, true)
                 val viewAdapter = EditPlusMinusPercentageViewAdapter.getViewAdapter(sp, applicationContext, container, true)
                 val view = viewAdapter.root
-                val initValue = SafeParse.stringToDouble(editPercentage?.editText?.text.toString(), percentage.toDouble())
+                val initValue = SafeParse.stringToDouble(editPercentage?.editText?.text.toString(), percentage)
                 Log.d(TAG, "percentage init value = $initValue")
 
                 editPercentage = PlusMinusPercentageEditText(
@@ -111,6 +111,7 @@ class ExerciseModeActivity : ViewSelectorActivity() {
                 )
 
                 container.addView(view)
+                // view.requestFocus()
                 view
             }
 
@@ -135,7 +136,7 @@ class ExerciseModeActivity : ViewSelectorActivity() {
                     true
                 )
                 container.addView(view)
-                view.requestFocus()
+                // view.requestFocus()
                 view
             }
 

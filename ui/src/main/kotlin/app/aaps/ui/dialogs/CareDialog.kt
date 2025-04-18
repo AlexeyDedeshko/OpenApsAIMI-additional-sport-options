@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.annotation.StringRes
 import app.aaps.core.data.configuration.Constants
+import app.aaps.core.data.configuration.Constants.DEF_TT_EXERCISE_DURATION
+import app.aaps.core.data.configuration.Constants.MIN_TT_EXERCISE_DURATION
 import app.aaps.core.data.configuration.Constants.NO_SPORT_PERCENTAGE
 import app.aaps.core.data.configuration.Constants.SPORT_PERCENTAGE_LIGHT
 import app.aaps.core.data.configuration.Constants.SPORT_PERCENTAGE_MIDDLE
@@ -261,12 +263,20 @@ class CareDialog : DialogFragmentWithDate() {
         }
         ////
 
+        //
+        binding.tt.setOnClickListener {
+            val isTT = binding.duration.value > 0 && binding.percentage.value < 100 && binding.switchDutyOptions.isChecked
+            binding.tt.isChecked = isTT
+            Log.d(TAG, "isTT checked = ${binding.tt.isChecked}")
+        }
+        ////
+
         // from ProfileSwitchDialog
         binding.percentage.setParams(
             savedInstanceState?.getDouble("percentage") ?: SPORT_PERCENTAGE_LIGHT, // 80%
-            Constants.CPP_MIN_PERCENTAGE.toDouble(),
-            Constants.CPP_MAX_PERCENTAGE.toDouble(),
-            5.0,
+            Constants.TT_MIN_PERCENTAGE.toDouble(),
+            Constants.TT_MAX_PERCENTAGE.toDouble(),
+            1.0,
             DecimalFormat("0"),
             false,
             binding.okcancel.ok,
@@ -282,7 +292,6 @@ class CareDialog : DialogFragmentWithDate() {
             binding.okcancel.ok
         )
         ////
-
 
         val bg = profileUtil.fromMgdlToUnits(glucoseStatusProvider.glucoseStatusData?.glucose ?: 0.0)
         val bgTextWatcher: TextWatcher = object : TextWatcher {
@@ -359,9 +368,14 @@ class CareDialog : DialogFragmentWithDate() {
         }
 
         binding.duration.setParams(
-            savedInstanceState?.getDouble("duration")
-                ?: 0.0, 0.0, Constants.MAX_PROFILE_SWITCH_DURATION, 10.0, DecimalFormat("0"), false, binding.okcancel.ok
-        )
+            savedInstanceState?.getDouble("duration") ?: DEF_TT_EXERCISE_DURATION,
+            MIN_TT_EXERCISE_DURATION,
+            Constants.MAX_TT_EXERCISE_DURATION,
+            10.0, DecimalFormat("0"),
+            false,
+            binding.okcancel.ok,
+            textWatcher
+        ) // DEF_TT_EXERCISE_DURATION
 
         if (options == UiInteraction.EventType.NOTE || options == UiInteraction.EventType.QUESTION
                 || options == UiInteraction.EventType.ANNOUNCEMENT || options == UiInteraction.EventType.EXERCISE) {
@@ -592,6 +606,7 @@ class CareDialog : DialogFragmentWithDate() {
                             )
                         )
                     ) {
+                        // same as in ProfileSwitchDialog, since there is a profile switch happens
                         if (percent == 90 && duration == 10) {
                             sp.putBoolean(app.aaps.core.utils.R.string.key_objectiveuseprofileswitch, true)
                         }
@@ -654,6 +669,7 @@ class CareDialog : DialogFragmentWithDate() {
                 val isDuration = binding.duration.value > 0
                 val isLowerPercentage = binding.percentage.value < 100
                 binding.ttLayout.visibility = (isDuration && isLowerPercentage).toVisibility()
+                Log.d(TAG, "isDuration = $isDuration, isLowerPercentage = $isLowerPercentage")
             }
         }
 

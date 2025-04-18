@@ -125,7 +125,7 @@ class DataHandlerMobile @Inject constructor(
     private val importExportPrefs: ImportExportPrefs,
     private val decimalFormatter: DecimalFormatter
 ) {
-    final val TAG = "DataHandlerMobile"
+    val TAG = "DataHandlerMobile"
     @Inject lateinit var automation: Automation
     private val disposable = CompositeDisposable()
 
@@ -229,7 +229,7 @@ class DataHandlerMobile @Inject constructor(
             .toObservable(EventData.ActionExerciseModeConfirmed::class.java)
             .observeOn(aapsSchedulers.io)
             .subscribe({
-               aapsLogger.debug(LTag.WEAR, "ActionProfileSwitchConfirmed received $it from ${it.sourceNodeId}")
+               aapsLogger.debug(LTag.WEAR, "ActionExerciseModeConfirmed received $it from ${it.sourceNodeId}")
                doExerciseMode(it)
             }, fabricPrivacy::logException)
 
@@ -731,7 +731,7 @@ class DataHandlerMobile @Inject constructor(
     private fun handleExerciseModeCommand(action: EventData.ActionExerciseMode) {
         Log.d(TAG, "handleExerciseModeCommand")
         val title = rh.gs(app.aaps.core.ui.R.string.confirm).uppercase()
-        var message = "test"
+        val message = "test"
 
         // val presetIsMGDL = profileFunction.getUnits() == GlucoseUnit.MGDL
         //
@@ -819,6 +819,7 @@ class DataHandlerMobile @Inject constructor(
                     sendError(rh.gs(R.string.wear_action_tempt_unit_error))
                     return
                 }
+
                 if (action.duration == 0) {
                     message += rh.gs(R.string.wear_action_tempt_zero_message)
                     rxBus.send(
@@ -829,23 +830,31 @@ class DataHandlerMobile @Inject constructor(
                             )
                         )
                     )
+
                 } else {
                     var low = action.low
                     var high = action.high
+
                     if (!action.isMgdl) {
                         low *= Constants.MMOLL_TO_MGDL
                         high *= Constants.MMOLL_TO_MGDL
                     }
+
                     if (low < HardLimits.LIMIT_TEMP_MIN_BG[0] || low > HardLimits.LIMIT_TEMP_MIN_BG[1]) {
                         sendError(rh.gs(R.string.wear_action_tempt_min_bg_error))
                         return
                     }
+
                     if (high < HardLimits.LIMIT_TEMP_MAX_BG[0] || high > HardLimits.LIMIT_TEMP_MAX_BG[1]) {
                         sendError(rh.gs(R.string.wear_action_tempt_max_bg_error))
                         return
                     }
+
                     message += if (low == high) rh.gs(R.string.wear_action_tempt_manual_message, action.low, action.duration)
-                    else rh.gs(R.string.wear_action_tempt_manual_range_message, action.low, action.high, action.duration)
+
+                    else {
+                        rh.gs(R.string.wear_action_tempt_manual_range_message, action.low, action.high, action.duration)
+                    }
 
                     rxBus.send(
                         EventMobileToWear(

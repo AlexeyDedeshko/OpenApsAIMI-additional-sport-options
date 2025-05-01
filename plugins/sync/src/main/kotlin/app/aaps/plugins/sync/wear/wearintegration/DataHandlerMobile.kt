@@ -731,21 +731,20 @@ class DataHandlerMobile @Inject constructor(
     private fun handleExerciseModeCommand(action: EventData.ActionExerciseMode) {
         Log.d(TAG, "handleExerciseModeCommand")
         val title = rh.gs(app.aaps.core.ui.R.string.confirm).uppercase()
-        val message = "test"
+        var message = ""
 
-        // val presetIsMGDL = profileFunction.getUnits() == GlucoseUnit.MGDL
-        //
-        // val activityTTDuration = preferences.get(IntKey.OverviewActivityDuration)
-        // val activityTT = preferences.get(UnitDoubleKey.OverviewActivityTarget)
-        // val reason = rh.gs(app.aaps.core.ui.R.string.activity)
-        // message += rh.gs(R.string.wear_action_tempt_preset_message, reason, activityTT, activityTTDuration)
+        var percentage = action.percentage
+        var duration = action.duration
+        var timeshift = action.timeShift
+
+        message += rh.gs(R.string.wear_action_enter_exercise_mode_message, percentage, duration, timeshift)
 
         rxBus.send(
             EventMobileToWear(
                 EventData.ConfirmAction(
                     title,
                     message,
-                    returnCommand = EventData.ActionExerciseModeConfirmed(/*presetIsMGDL, activityTTDuration, activityTT*/)
+                    returnCommand = EventData.ActionExerciseModeConfirmed(percentage, duration, timeshift)
                 )
             )
         )
@@ -850,16 +849,18 @@ class DataHandlerMobile @Inject constructor(
                         return
                     }
 
-                    message += if (low == high) rh.gs(R.string.wear_action_tempt_manual_message, action.low, action.duration)
-
-                    else {
+                    message += if (low == high) {
+                        rh.gs(R.string.wear_action_tempt_manual_message, action.low, action.duration)
+                    } else {
                         rh.gs(R.string.wear_action_tempt_manual_range_message, action.low, action.high, action.duration)
                     }
+                    Log.d(TAG, "handleTempTargetPreCheck; message = $message")
 
                     rxBus.send(
                         EventMobileToWear(
                             EventData.ConfirmAction(
-                                title, message,
+                                title,
+                                message,
                                 returnCommand = EventData.ActionTempTargetConfirmed(presetIsMGDL, action.duration, action.low, action.high)
                             )
                         )
@@ -1425,7 +1426,42 @@ class DataHandlerMobile @Inject constructor(
     }
 
     private fun doExerciseMode(command: EventData.ActionExerciseModeConfirmed) {
-        Log.d(TAG, "doExerciseMode")
+        Log.d(TAG, "doExerciseMode, command = $command")
+        if (command.duration != 0) {
+            val target = preferences.get(UnitDoubleKey.OverviewActivityTarget)
+            val units = profileFunction.getUnits()
+
+            disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
+                temporaryTarget = TT(
+                    timestamp = System.currentTimeMillis(),
+                    duration = TimeUnit.MINUTES.toMillis(command.duration.toLong()),
+                    reason = TT.Reason.ACTIVITY,//.WEAR,
+                    lowTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits()),
+                    highTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits())
+                ),
+                action = Action.TT,
+                source = Sources.Wear,
+                note = null,
+
+                listValues = listOf(
+                    // ValueWithUnit.Timestamp(eventTime).takeIf { eventTimeChanged },
+                    ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
+                    ValueWithUnit.fromGlucoseUnit(target, units),
+                    ValueWithUnit.Minute(command.duration)
+                )
+
+            ).subscribe()
+
+        } else {
+            disposable += persistenceLayer.cancelCurrentTemporaryTargetIfAny(
+                timestamp = dateUtil.now(),
+                action = Action.CANCEL_TT,
+                source = Sources.Wear,
+                note = null,
+                listValues = listOf(ValueWithUnit.TETTReason(TT.Reason.WEAR))
+
+            ).subscribe()
+        }
     }
 
     private fun doProfileSwitch(command: EventData.ActionProfileSwitchConfirmed) {

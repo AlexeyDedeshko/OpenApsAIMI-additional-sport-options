@@ -186,6 +186,7 @@
     <string name="wear_action_tempt_min_bg_error">Min-BG out of range!</string>
     <string name="wear_action_tempt_max_bg_error">Max-BG out of range!</string>
     <string name="wear_action_tempt_manual_range_message">Temptarget:\nMin: %1$s\nMax: %2$s\nDuration: %3$s</string>
+    <string name="wear_action_enter_exercise_mode_message">Enter Exercise Mode:\n\nPercent: %1$s%%\nDuration: %2$smin.\nTimeshift: %3$smin.</string>
     <string name="wear_action_tempt_manual_message">Temptarget:\nTarget: %1$s\nDuration: %2$s</string>
     <string name="wear_action_tempt_preset_message">Temptarget:\nReason: %1$s\nTarget: %2$s\nDuration: %3$s</string>
     <string name="no_success">not successful - please check phone</string>

@@ -98,7 +98,11 @@ class TempTargetActivity : ViewSelectorActivity() {
                         isMGDL,
                         SafeParse.stringToInt(time?.editText?.text.toString()),
                         SafeParse.stringToDouble(lowRange?.editText?.text.toString()),
-                        if (isSingleTarget) SafeParse.stringToDouble(lowRange?.editText?.text.toString()) else SafeParse.stringToDouble(highRange?.editText?.text.toString())
+                        if (isSingleTarget) {
+                            SafeParse.stringToDouble(lowRange?.editText?.text.toString())
+                        } else {
+                            SafeParse.stringToDouble(highRange?.editText?.text.toString())
+                        }
                     )
                     rxBus.send(EventWearToMobile(action))
                     showToast(this@TempTargetActivity, R.string.action_tempt_confirmation)

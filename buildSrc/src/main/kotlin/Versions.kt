@@ -2,8 +2,8 @@ import org.gradle.api.JavaVersion
 
 object Versions {
 
-    const val appVersion = "3.3.0-dev-c-AIMI-b-061024"
-    const val versionCode = 1500
+    const val appVersion = "AIMI_whatchSport_tg_alexemplify_v2"
+    const val versionCode = 1502
 
     const val ndkVersion = "21.1.6352462"
 

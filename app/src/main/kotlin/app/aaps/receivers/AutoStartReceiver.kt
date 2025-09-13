@@ -12,7 +12,10 @@ class AutoStartReceiver : DaggerBroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED)
-            dummyServiceHelper.startService(context)
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
+            Intent.ACTION_USER_UNLOCKED -> dummyServiceHelper.startService(context)
+        }
     }
 }

@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -20,16 +22,16 @@ import app.aaps.core.interfaces.sharedPreferences.SP
 import app.aaps.shared.impl.weardata.ZipWatchfaceFormat
 import app.aaps.wear.R
 import app.aaps.wear.events.EventWearPreferenceChange
-import app.aaps.wear.heartrate.HeartRateListener
 import app.aaps.wear.interaction.ConfigurationActivity
 import app.aaps.wear.interaction.utils.Persistence
+import app.aaps.wear.heartrate.HeartRateListener
 import app.aaps.wear.wearStepCount.StepCountListener
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
-import com.google.android.gms.wearable.DataMap
+import com.google.android.gms.wearable.DataMap  // Added import to fix unresolved reference
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Node
 import com.google.android.gms.wearable.PutDataMapRequest
@@ -48,7 +50,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.ExperimentalSerializationApi
 import javax.inject.Inject
 
-class DataLayerListenerServiceWear : WearableListenerService() {
+class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient.OnCapabilityChangedListener {
     private val TAG = "DataLayerListenerServiceWear"
     @Inject lateinit var aapsLogger: AAPSLogger
     @Inject lateinit var persistence: Persistence
@@ -59,10 +61,12 @@ class DataLayerListenerServiceWear : WearableListenerService() {
     private val dataClient by lazy { Wearable.getDataClient(this) }
     private val messageClient by lazy { Wearable.getMessageClient(this) }
     private val capabilityClient by lazy { Wearable.getCapabilityClient(this) }
-    //private val nodeClient by lazy { Wearable.getNodeClient(this) }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var handler = Handler(HandlerThread(this::class.simpleName + "Handler").also { it.start() }.looper)
+
+    private var lastInboundMs: Long = SystemClock.elapsedRealtime()
+    private var lastPingMs: Long = 0L
 
     private val disposable = CompositeDisposable()
     private var heartRateListener: HeartRateListener? = null
@@ -77,6 +81,8 @@ class DataLayerListenerServiceWear : WearableListenerService() {
         super.onCreate()
         startForegroundService()
         handler.post { updateTranscriptionCapability() }
+
+        capabilityClient.addListener(this, PHONE_CAPABILITY)
 
         disposable += rxBus
             .toObservable(EventWearToMobile::class.java)
@@ -102,6 +108,8 @@ class DataLayerListenerServiceWear : WearableListenerService() {
 
         updateHeartRateListener()
         updateStepsCountListener()
+        startKeepAlive()
+        lastInboundMs = SystemClock.elapsedRealtime()
     }
 
     override fun onCapabilityChanged(p0: CapabilityInfo) {
@@ -112,24 +120,32 @@ class DataLayerListenerServiceWear : WearableListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        capabilityClient.removeListener(this, PHONE_CAPABILITY)
+        stopKeepAlive()
+        aapsLogger.debug(LTag.WEAR, "$TAG onDestroy: keepAlive stopped, scope cancel pending")
         scope.cancel()
         disposable.clear()
     }
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
-        //aapsLogger.debug(LTag.WEAR, "onDataChanged")
-
         dataEvents.forEach { event ->
             if (event.type == DataEvent.TYPE_CHANGED) {
                 val path = event.dataItem.uri.path
+                aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, item=${event.dataItem}")
 
-                aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, EventDataItem=${event.dataItem}")
-                try {
-                    @Suppress("ControlFlowWithEmptyBody", "UNUSED_EXPRESSION")
-                    when (path) {
+                when (path) {
+                    "/aaps/overview" -> {
+                        try {
+                            val dmi = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem)
+                            val dm = dmi.dataMap
+                            aapsLogger.debug(LTag.WEAR, "$TAG overview dm keys=${dm.keySet()}")
+                        } catch (e: Exception) {
+                            aapsLogger.error(LTag.WEAR, "$TAG onDataChanged(/aaps/overview) failed", e)
+                        }
                     }
-                } catch (exception: Exception) {
-                    aapsLogger.error(LTag.WEAR, "onDataChanged failed", exception)
+                    else -> {
+                        aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: UNHANDLED path=$path")
+                    }
                 }
             }
         }
@@ -140,13 +156,17 @@ class DataLayerListenerServiceWear : WearableListenerService() {
     override fun onMessageReceived(messageEvent: MessageEvent) {
         super.onMessageReceived(messageEvent)
         aapsLogger.debug(LTag.WEAR, "$TAG 1. onMessageReceived: ${messageEvent}")
+        lastInboundMs = SystemClock.elapsedRealtime()
         when (messageEvent.path) {
             rxPath     -> {
                 aapsLogger.debug(LTag.WEAR, "$TAG onMessageReceived: ${String(messageEvent.data)}")
                 val command = EventData.deserialize(String(messageEvent.data))
                 Log.d(TAG, "messageEvent.data = ${String(messageEvent.data)}, command = ${command}")
+                // Added logging for GraphData
+                if (command is EventData.GraphData) {
+                    aapsLogger.info(LTag.WEAR, "$TAG GraphData received: sgv=${command.entries.lastOrNull()?.sgv}, entries=${command.entries.size}")
+                }
                 rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
-                // Use this sender
                 transcriptionNodeId = messageEvent.sourceNodeId
                 aapsLogger.debug(LTag.WEAR, "$TAG Updated node: $transcriptionNodeId")
             }
@@ -157,7 +177,6 @@ class DataLayerListenerServiceWear : WearableListenerService() {
                     val command = EventData.ActionSetCustomWatchface(it.cwfData)
                     rxBus.send(command.also { it.sourceNodeId = messageEvent.sourceNodeId })
                 }
-                // Use this sender
                 transcriptionNodeId = messageEvent.sourceNodeId
                 aapsLogger.debug(LTag.WEAR, "$TAG Updated node: $transcriptionNodeId")
             }
@@ -166,11 +185,8 @@ class DataLayerListenerServiceWear : WearableListenerService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-
             INTENT_CANCEL_BOLUS        -> {
-                //dismiss notification
                 NotificationManagerCompat.from(this).cancel(BOLUS_PROGRESS_NOTIF_ID)
-                //send cancel-request to phone.
                 rxBus.send(EventWearToMobile(EventData.CancelBolus(System.currentTimeMillis())))
             }
 
@@ -193,7 +209,6 @@ class DataLayerListenerServiceWear : WearableListenerService() {
             .build()
         startForeground(FOREGROUND_NOTIF_ID, notification)
     }
-
 
     private fun updateHeartRateListener() {
         if (sp.getBoolean(R.string.key_heart_rate_sampling, false)) {
@@ -239,6 +254,80 @@ class DataLayerListenerServiceWear : WearableListenerService() {
 
     private var transcriptionNodeId: String? = null
 
+    private var keepAliveStarted = false
+    private val keepAliveRunnable = object : Runnable {
+        override fun run() {
+            val now = SystemClock.elapsedRealtime()
+            try {
+                val pm = getSystemService(POWER_SERVICE) as PowerManager
+                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:keepalive")
+                wl.setReferenceCounted(false)
+                try {
+                    wl.acquire(3000)
+                    lastPingMs = now
+                    rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
+                    // Removed ActionRefreshUi; add back after defining it in EventData.kt
+                    aapsLogger.debug(LTag.WEAR, "$TAG keepAlive tick: ping sent; sinceLastInbound=${now - lastInboundMs} ms")
+                } finally {
+                    if (wl.isHeld) wl.release()
+                }
+
+                if (now - lastInboundMs > 120_000L) {
+                    aapsLogger.debug(LTag.WEAR, "$TAG watchdog: stale >120s; refreshing capability & forcing extra ping")
+                    handler.post { updateTranscriptionCapability() }
+                    val pm2 = getSystemService(POWER_SERVICE) as PowerManager
+                    val wl2 = pm2.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:watchdog")
+                    wl2.setReferenceCounted(false)
+                    try {
+                        wl2.acquire(3000)
+                        rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
+                        // Removed ActionRefreshUi; add back after defining it
+                    } finally {
+                        if (wl2.isHeld) wl2.release()
+                    }
+                }
+            } catch (t: Throwable) {
+                aapsLogger.error(LTag.WEAR, "$TAG keepAlive error: $t")
+            } finally {
+                handler.postDelayed(this, 30_000L)  // Reduced to 30s for more frequent checks
+            }
+        }
+    }
+
+    private fun startKeepAlive() {
+        if (!keepAliveStarted) {
+            keepAliveStarted = true
+            handler.postDelayed(keepAliveRunnable, 1_000L)
+            aapsLogger.debug(LTag.WEAR, "$TAG keepAlive started")
+        }
+    }
+
+    private fun stopKeepAlive() {
+        if (keepAliveStarted) {
+            keepAliveStarted = false
+            handler.removeCallbacks(keepAliveRunnable)
+            lastPingMs = 0L
+            aapsLogger.debug(LTag.WEAR, "$TAG keepAlive stopped")
+        }
+    }
+
+    private fun ensureNodeSelected(): String? {
+        transcriptionNodeId?.let { return it }
+        return try {
+            val capabilityInfo: CapabilityInfo = Tasks.await(
+                capabilityClient.getCapability(PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
+            )
+            aapsLogger.debug(LTag.WEAR, "$TAG ensureNodeSelected Nodes: ${capabilityInfo.nodes.joinToString(", ") { it.displayName + "(" + it.id + ")" }}")
+            pickBestNodeId(capabilityInfo.nodes)?.also { selected ->
+                transcriptionNodeId = selected
+                aapsLogger.debug(LTag.WEAR, "$TAG ensureNodeSelected picked: $selected")
+            }
+        } catch (e: Exception) {
+            aapsLogger.error(LTag.WEAR, "$TAG ensureNodeSelected failed: $e")
+            null
+        }
+    }
+
     private fun updateTranscriptionCapability() {
         val capabilityInfo: CapabilityInfo = Tasks.await(
             capabilityClient.getCapability(PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
@@ -248,7 +337,6 @@ class DataLayerListenerServiceWear : WearableListenerService() {
         aapsLogger.debug(LTag.WEAR, "$TAG Selected node: $transcriptionNodeId")
     }
 
-    // Find a nearby node or pick one arbitrarily
     private fun pickBestNodeId(nodes: Set<Node>): String? =
         nodes.firstOrNull { it.isNearby }?.id ?: nodes.firstOrNull()?.id
 
@@ -262,7 +350,6 @@ class DataLayerListenerServiceWear : WearableListenerService() {
                     }
                         .asPutDataRequest()
                         .setUrgent()
-
                     val result = dataClient.putDataItem(request).await()
                     aapsLogger.debug(LTag.WEAR, "$TAG sendData: ${result.uri} ${params.joinToString()}")
                 }
@@ -275,43 +362,45 @@ class DataLayerListenerServiceWear : WearableListenerService() {
     }
 
     private fun sendMessage(path: String, data: String?) {
-        transcriptionNodeId?.also { nodeId ->
-            aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path, data: $data, nodeId = $nodeId")
-            messageClient.sendMessage(nodeId, path, data?.toByteArray() ?: byteArrayOf()).apply {
-                    addOnSuccessListener {
-                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path success $it")
-                    }
-                    addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure $it")
-                    }
-                }
-        } ?: aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: Ignoring message. No node selected.")
+        val nodeId = ensureNodeSelected()
+        if (nodeId == null) {
+            aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: Ignoring message. No node available (after ensure).")
+            return
+        }
+        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path, data: $data, nodeId = $nodeId")
+        messageClient.sendMessage(nodeId, path, data?.toByteArray() ?: byteArrayOf()).apply {
+            addOnSuccessListener {
+                aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path success $it")
+            }
+            addOnFailureListener {
+                aapsLogger.debug(LTag.WEAR, "$TAG sendMessage: $path failure $it")
+            }
+        }
     }
 
     private fun sendMessage(path: String, data: ByteArray) {
         aapsLogger.debug(LTag.WEAR, "$TAG sendMessage byte array: $path ${data.size}")
-        transcriptionNodeId?.also { nodeId ->
-            messageClient
-                .sendMessage(nodeId, path, data).apply {
-                    addOnSuccessListener { }
-                    addOnFailureListener {
-                        aapsLogger.debug(LTag.WEAR, "$TAG sendMessage:  $path failure ${data.size}")
-                    }
-                }
+        val nodeId = ensureNodeSelected()
+        if (nodeId == null) {
+            aapsLogger.debug(LTag.WEAR, "$TAG sendMessage(bytes): Ignoring message. No node available (after ensure).")
+            return
+        }
+        messageClient.sendMessage(nodeId, path, data).apply {
+            addOnSuccessListener { /* ok */ }
+            addOnFailureListener {
+                aapsLogger.debug(LTag.WEAR, "$TAG sendMessage(bytes): $path failure ${data.size}")
+            }
         }
     }
 
     companion object {
-
         const val PHONE_CAPABILITY = "androidaps_mobile"
 
-        // Accepted intents
         val INTENT_NEW_DATA = DataLayerListenerServiceWear::class.java.name + ".NewData"
         val INTENT_CANCEL_BOLUS = DataLayerListenerServiceWear::class.java.name + ".CancelBolus"
         val INTENT_WEAR_TO_MOBILE = DataLayerListenerServiceWear::class.java.name + ".WearToMobile"
         val INTENT_CANCEL_NOTIFICATION = DataLayerListenerServiceWear::class.java.name + ".CancelNotification"
 
-        //data keys
         const val KEY_ACTION_DATA = "actionData"
         const val KEY_ACTION = "action"
         const val KEY_MESSAGE = "message"

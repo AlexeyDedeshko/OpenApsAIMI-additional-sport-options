@@ -949,4 +949,3 @@ class CustomWatchface : BaseWatchFace() {
     }
 }
 
-

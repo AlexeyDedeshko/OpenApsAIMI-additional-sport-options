@@ -1,29 +1,21 @@
 @file:Suppress("DEPRECATION")
 
 package app.aaps.wear.watchfaces
-
+import android.util.Log
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Point
-import android.graphics.RectF
+import android.graphics.*
 import android.os.PowerManager
+import android.os.SystemClock
 import android.support.wearable.watchface.WatchFaceStyle
 import android.util.TypedValue
-import android.view.LayoutInflater
-import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
 import app.aaps.core.interfaces.logging.AAPSLogger
 import app.aaps.core.interfaces.logging.LTag
 import app.aaps.core.interfaces.rx.AapsSchedulers
 import app.aaps.core.interfaces.rx.bus.RxBus
 import app.aaps.core.interfaces.rx.events.EventWearToMobile
 import app.aaps.core.interfaces.rx.weardata.EventData
-import app.aaps.core.interfaces.rx.weardata.EventData.ActionResendData
-import app.aaps.core.interfaces.rx.weardata.EventData.SingleBg
 import app.aaps.core.interfaces.sharedPreferences.SP
 import app.aaps.wear.R
 import app.aaps.wear.data.RawDisplayData
@@ -42,89 +34,99 @@ import kotlin.math.max
 
 class CircleWatchface : WatchFace() {
 
-    @Inject lateinit var rxBus: RxBus
+    private val TAG = "WEAR_FACE"
 
+    @Inject lateinit var rxBus: RxBus
     @Inject lateinit var aapsSchedulers: AapsSchedulers
     @Inject lateinit var aapsLogger: AAPSLogger
     @Inject lateinit var sp: SP
     @Inject lateinit var persistence: Persistence
 
-    private var disposable = CompositeDisposable()
+    private val disposable = CompositeDisposable()
 
+    // ——— Источник данных как раньше
     private val rawData = RawDisplayData()
 
-    private val singleBg get() = rawData.singleBg
-    private val status get() = rawData.status
-    private val graphData get() = rawData.graphData
+    // ——— Локальные «быстрые» снапшоты для мгновенного обновления экрана:
+    private var latestSingleBg: EventData.SingleBg? = null
+    private var latestStatus: EventData.Status? = null
+    private var latestGraph: EventData.GraphData? = null
 
+    private fun curSingleBg(): EventData.SingleBg = latestSingleBg ?: rawData.singleBg
+    private fun curStatus(): EventData.Status = latestStatus ?: rawData.status
+    private fun curGraph(): EventData.GraphData = latestGraph ?: rawData.graphData
+
+    // ——— Габариты и геометрия
+    private val displaySize = Point()
+    private lateinit var rect: RectF
+    private lateinit var rectDelete: RectF
+
+    // ——— Параметры отрисовки
     companion object {
-
         const val PADDING = 20f
         const val CIRCLE_WIDTH = 10f
         const val BIG_HAND_WIDTH = 16
         const val SMALL_HAND_WIDTH = 8
-        const val NEAR = 2 //how near do the hands have endTime be endTime activate overlapping mode
+        const val NEAR = 2
         const val ALWAYS_HIGHLIGHT_SMALL = false
         const val fraction = .5
     }
 
-    //variables for time
+    // ——— Углы стрелок/цвет
     private var angleBig = 0f
-    private var angleSMALL = 0f
-    private var color = 0
-    private val circlePaint = Paint()
-    private val removePaint = Paint()
-    private lateinit var rect: RectF
-    private lateinit var rectDelete: RectF
+    private var angleSmall = 0f
+    private var ringColor = 0
     private var overlapping = false
-    private var displaySize = Point()
-    private var bgDataList = ArrayList<SingleBg>()
-    private var specW = 0
-    private var specH = 0
-    private var myLayout: View? = null
-    private var mSgv: TextView? = null
-    private var sgvTapTime: Long = 0
 
-    @SuppressLint("InflateParams")
+    // ——— Paints (кэшируем)
+    private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = CIRCLE_WIDTH
+    }
+    private val removePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = CIRCLE_WIDTH
+    }
+    private val textPaintLarge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    private val textPaintMid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    private val textPaintSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    private val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.LEFT
+    }
+
+    // ——— История на кольце
+    private val bgDataList = ArrayList<EventData.SingleBg>()
+
+    // ——— Отладка задержек
+    private var lastInboundElapsed: Long = SystemClock.elapsedRealtime()
+    private var lastDrawElapsed: Long = SystemClock.elapsedRealtime()
+    private var lastUpdateToInvalidateMs: Long = 0L
+
+    // ——— Новые поля для точной метрики
+    private var tSingleBgMs: Long = 0L
+    private var tStatusMs: Long = 0L
+
+    @SuppressLint("WakelockTimeout")
     override fun onCreate() {
         AndroidInjection.inject(this)
         super.onCreate()
-        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface")
-        wakeLock.acquire(30000)
-        val display = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
-        display.getSize(displaySize)
-        specW = View.MeasureSpec.makeMeasureSpec(displaySize.x, View.MeasureSpec.EXACTLY)
-        specH = View.MeasureSpec.makeMeasureSpec(displaySize.y, View.MeasureSpec.EXACTLY)
 
-        //register Message Receiver
-        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        myLayout = inflater.inflate(R.layout.activity_circle, null)
-        prepareLayout()
-        prepareDrawTime()
-        disposable += rxBus
-            .toObservable(EventData.Status::class.java)
-            .observeOn(aapsSchedulers.main)
-            .subscribe {
-                // this event is received as last batch of data
-                aapsLogger.debug(LTag.WEAR, "Status received")
-                rawData.updateFromPersistence(persistence)
-                addToWatchSet()
-                prepareLayout()
-                prepareDrawTime()
-                invalidate()
-            }
-        disposable += rxBus
-            .toObservable(EventData.Preferences::class.java)
-            .observeOn(aapsSchedulers.main)
-            .subscribe {
-                prepareDrawTime()
-                prepareLayout()
-                invalidate()
-            }
-        rawData.updateFromPersistence(persistence)
-        rxBus.send(EventWearToMobile(ActionResendData("CircleWatchFace::onCreate")))
-        wakeLock.release()
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface").apply {
+            acquire(30_000)
+            initGeometryAndScales()
+            subscribeToBus()
+            rawData.updateFromPersistence(persistence) // стартовый снэпшот
+            // запросим полную посылку при запуске
+            rxBus.send(EventWearToMobile(EventData.ActionResendData("CircleWatchFace::onCreate")))
+            release()
+        }
     }
 
     override fun onDestroy() {
@@ -132,271 +134,326 @@ class CircleWatchface : WatchFace() {
         super.onDestroy()
     }
 
-    @Synchronized override fun onDraw(canvas: Canvas) {
-        aapsLogger.debug(LTag.WEAR, "start onDraw")
-        canvas.drawColor(backgroundColor)
-        drawTime(canvas)
-        drawOtherStuff(canvas)
-        myLayout?.draw(canvas)
+    // ——— Отрисовка
+    @Synchronized
+    override fun onDraw(canvas: Canvas) {
+        // отметка «через сколько после invalidate() пришли в onDraw()»
+        aapsLogger.debug(
+            LTag.WEAR,
+            "CircleWatchface: onDraw(); +${SystemClock.elapsedRealtime() - lastInboundElapsed}ms after invalidate()"
+        )
+        Log.d(TAG, "onDraw(); +${SystemClock.elapsedRealtime() - lastInboundElapsed}ms after invalidate()")
+
+        val bgCol = backgroundColor
+        canvas.drawColor(bgCol)
+
+        drawTimeRing(canvas)
+        drawTexts(canvas)
+
+        lastDrawElapsed = SystemClock.elapsedRealtime()
     }
 
-    @Synchronized private fun prepareLayout() {
-        aapsLogger.debug(LTag.WEAR, "start startPrepareLayout")
-
-        // prepare fields
-        mSgv = myLayout?.findViewById(R.id.sgvString)
-        if (sp.getBoolean(R.string.key_show_bg, true)) {
-            mSgv?.visibility = View.VISIBLE
-            mSgv?.text = singleBg.sgvString
-            mSgv?.setTextColor(textColor)
-        } else {
-            //Also possible: View.INVISIBLE instead of View.GONE (no layout change)
-            mSgv?.visibility = View.INVISIBLE
-        }
-        val detailedIob = sp.getBoolean(R.string.key_show_detailed_iob, false)
-        val showBgi = sp.getBoolean(R.string.key_show_bgi, false)
-        val iobString =
-            if (detailedIob) "${status.iobSum} ${status.iobDetail}"
-            else status.iobSum + getString(R.string.units_short)
-        val externalStatus = if (showBgi)
-            "${status.externalStatus} ${iobString} ${status.bgi}"
-        else
-            "${status.externalStatus} ${iobString}"
-        var textView = myLayout?.findViewById<TextView>(R.id.statusString)
-        if (sp.getBoolean(R.string.key_show_external_status, true)) {
-            textView?.visibility = View.VISIBLE
-            textView?.text = externalStatus
-            textView?.setTextColor(textColor)
-        } else {
-            //Also possible: View.INVISIBLE instead of View.GONE (no layout change)
-            textView?.visibility = View.GONE
-        }
-        textView = myLayout?.findViewById(R.id.agoString)
-        if (sp.getBoolean(R.string.key_show_ago, true)) {
-            textView?.visibility = View.VISIBLE
-            if (sp.getBoolean(R.string.key_show_big_numbers, false)) {
-                textView?.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
-            } else {
-                (myLayout?.findViewById<View>(R.id.agoString) as TextView).setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            }
-            textView?.text = minutes
-            textView?.setTextColor(textColor)
-        } else {
-            //Also possible: View.INVISIBLE instead of View.GONE (no layout change)
-            textView?.visibility = View.INVISIBLE
-        }
-        textView = myLayout?.findViewById(R.id.deltaString)
-        val detailedDelta = sp.getBoolean(R.string.key_show_detailed_delta, false)
-        if (sp.getBoolean(R.string.key_show_delta, true)) {
-            textView?.visibility = View.VISIBLE
-            textView?.text = if (detailedDelta) singleBg.deltaDetailed else singleBg.delta
-            textView?.setTextColor(textColor)
-            if (sp.getBoolean(R.string.key_show_big_numbers, false)) {
-                textView?.setTextSize(TypedValue.COMPLEX_UNIT_SP, 25f)
-            } else {
-                textView?.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-            }
-            if (sp.getBoolean(R.string.key_show_avg_delta, true)) {
-                textView?.append("  " + if (detailedDelta) singleBg.avgDeltaDetailed else singleBg.avgDelta)
-            }
-        } else {
-            //Also possible: View.INVISIBLE instead of View.GONE (no layout change)
-            textView?.visibility = View.INVISIBLE
-        }
-        myLayout?.measure(specW, specH)
-        myLayout?.layout(0, 0, myLayout?.measuredWidth ?: 0, myLayout?.measuredHeight ?: 0)
-    }
-
-    private val minutes: String
-        get() {
-            var minutes = "--'"
-            if (singleBg.timeStamp != 0L) {
-                minutes = floor((System.currentTimeMillis() - singleBg.timeStamp) / 60000.0).toInt().toString() + "'"
-            }
-            return minutes
-        }
-
-    private fun drawTime(canvas: Canvas) {
-
-        //draw circle
-        circlePaint.color = color
-        circlePaint.strokeWidth = CIRCLE_WIDTH
-        canvas.drawArc(rect, 0f, 360f, false, circlePaint)
-        //"remove" hands from circle
-        removePaint.strokeWidth = CIRCLE_WIDTH * 3
-        canvas.drawArc(rectDelete, angleBig, BIG_HAND_WIDTH.toFloat(), false, removePaint)
-        canvas.drawArc(rectDelete, angleSMALL, SMALL_HAND_WIDTH.toFloat(), false, removePaint)
-        if (overlapping) {
-            //add small hand with extra
-            circlePaint.strokeWidth = CIRCLE_WIDTH * 2
-            circlePaint.color = color
-            canvas.drawArc(rect, angleSMALL, SMALL_HAND_WIDTH.toFloat(), false, circlePaint)
-
-            //remove inner part of hands
-            removePaint.strokeWidth = CIRCLE_WIDTH
-            canvas.drawArc(rect, angleBig, BIG_HAND_WIDTH.toFloat(), false, removePaint)
-            canvas.drawArc(rect, angleSMALL, SMALL_HAND_WIDTH.toFloat(), false, removePaint)
-        }
-    }
-
-    @Synchronized private fun prepareDrawTime() {
-        aapsLogger.debug(LTag.WEAR, "start prepareDrawTime")
-        val hour = Calendar.getInstance()[Calendar.HOUR_OF_DAY] % 12
-        val minute = Calendar.getInstance()[Calendar.MINUTE]
-        angleBig = ((hour + minute / 60f) / 12f * 360 - 90 - BIG_HAND_WIDTH / 2f + 360) % 360
-        angleSMALL = (minute / 60f * 360 - 90 - SMALL_HAND_WIDTH / 2f + 360) % 360
-        color = 0
-        when (singleBg.sgvLevel.toInt()) {
-            -1 -> color = lowColor
-            0  -> color = inRangeColor
-            1  -> color = highColor
-        }
-        circlePaint.shader = null
-        circlePaint.style = Paint.Style.STROKE
-        circlePaint.strokeWidth = CIRCLE_WIDTH
-        circlePaint.isAntiAlias = true
-        circlePaint.color = color
-        removePaint.style = Paint.Style.STROKE
-        removePaint.strokeWidth = CIRCLE_WIDTH
-        removePaint.isAntiAlias = true
-        removePaint.color = backgroundColor
-        rect = RectF(PADDING, PADDING, displaySize.x - PADDING, displaySize.y - PADDING)
-        rectDelete = RectF(PADDING - CIRCLE_WIDTH / 2, PADDING - CIRCLE_WIDTH / 2, displaySize.x - PADDING + CIRCLE_WIDTH / 2, displaySize.y - PADDING + CIRCLE_WIDTH / 2)
-        overlapping = ALWAYS_HIGHLIGHT_SMALL || areOverlapping(angleSMALL, angleSMALL + SMALL_HAND_WIDTH + NEAR, angleBig, angleBig + BIG_HAND_WIDTH + NEAR)
-        aapsLogger.debug(LTag.WEAR, "end prepareDrawTime")
-    }
-
-    private fun areOverlapping(aBegin: Float, aEnd: Float, bBegin: Float, bEnd: Float): Boolean {
-        return bBegin in aBegin..aEnd || aBegin <= bBegin && bEnd > 360 && bEnd % 360 > aBegin || aBegin in bBegin..bEnd || bBegin <= aBegin && aEnd > 360 && aEnd % 360 > bBegin
-    }
-
+    // ——— Обновление раз в минуту только геометрии/стрелок
     override fun onTimeChanged(oldTime: WatchFaceTime, newTime: WatchFaceTime) {
         if (oldTime.hasMinuteChanged(newTime)) {
-            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-            val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface_onTimeChanged")
-            wakeLock.acquire(30000)
-            /*Preparing the layout just on every minute tick:
-             *  - hopefully better battery life
-             *  - drawback: might update the minutes since last reading up endTime one minute late*/prepareLayout()
-            prepareDrawTime()
-            invalidate() //redraw the time
-            wakeLock.release()
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface_onTimeChanged").apply {
+                acquire(3_000)
+                prepareDrawTime() // только время и цвет кольца
+                invalidate()
+                release()
+            }
         }
     }
 
-    // defining color for dark and bright
-    private val lowColor: Int
-        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 255, 120, 120) else Color.argb(255, 255, 80, 80)
-    private val inRangeColor: Int
-        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 120, 255, 120) else Color.argb(255, 0, 240, 0)
-    private val highColor: Int
-        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 255, 255, 120) else Color.argb(255, 255, 200, 0)
-    private val backgroundColor: Int
-        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.BLACK else Color.WHITE
-    val textColor: Int
-        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.WHITE else Color.BLACK
+    // ——— Подписки на события — МГНОВЕННОЕ обновление
+    private fun subscribeToBus() {
+        // Status
+        disposable += rxBus
+            .toObservable(EventData.Status::class.java)
+            .observeOn(aapsSchedulers.main)
+            .subscribe {
+                latestStatus = it
+                tStatusMs = SystemClock.elapsedRealtime()
+                aapsLogger.debug(LTag.WEAR, "CircleWatchface: Rx Status at ${tStatusMs}ms")
+                Log.d(TAG, "Rx Status at ${tStatusMs}ms")
+                rawData.updateFromPersistence(persistence) // для совместимости со старой логикой
+                addToWatchSet()
+                fastRedraw("Status")
+            }
 
-    private fun drawOtherStuff(canvas: Canvas) {
-        aapsLogger.debug(LTag.WEAR, "start onDrawOtherStuff. bgDataList.size(): " + bgDataList.size)
-        if (sp.getBoolean(R.string.key_show_ring_history, false)) {
-            //Perfect low and High indicators
-            if (bgDataList.size > 0) {
-                addIndicator(canvas, 100f, Color.LTGRAY)
-                addIndicator(canvas, bgDataList.iterator().next().low.toFloat(), lowColor)
-                addIndicator(canvas, bgDataList.iterator().next().high.toFloat(), highColor)
-                if (sp.getBoolean("softRingHistory", true)) {
-                    for (data in bgDataList) {
-                        addReadingSoft(canvas, data)
-                    }
-                } else {
-                    for (data in bgDataList) {
-                        addReading(canvas, data)
-                    }
+        // SingleBg
+        disposable += rxBus
+            .toObservable(EventData.SingleBg::class.java)
+            .observeOn(aapsSchedulers.main)
+            .subscribe {
+                latestSingleBg = it
+                tSingleBgMs = SystemClock.elapsedRealtime()
+                aapsLogger.debug(LTag.WEAR, "CircleWatchface: Rx SingleBg at ${tSingleBgMs}ms")
+                Log.d(TAG, "Rx SingleBg at ${tSingleBgMs}ms")
+                // цвет/стрелки зависят от BG — пересчитаем
+                prepareDrawTime()
+                fastRedraw("SingleBg")
+            }
+
+        // GraphData
+        disposable += rxBus
+            .toObservable(EventData.GraphData::class.java)
+            .observeOn(aapsSchedulers.main)
+            .subscribe {
+                latestGraph = it
+                addToWatchSet()
+                fastRedraw("GraphData")
+            }
+
+        // Preferences
+        disposable += rxBus
+            .toObservable(EventData.Preferences::class.java)
+            .observeOn(aapsSchedulers.main)
+            .subscribe {
+                initTextSizes() // могли измениться «крупные цифры»
+                prepareDrawTime()
+                fastRedraw("Preferences")
+            }
+    }
+
+    private fun fastRedraw(tag: String) {
+        val now = SystemClock.elapsedRealtime()
+        lastUpdateToInvalidateMs = now - lastInboundElapsed
+        lastInboundElapsed = now
+
+        val dFromSingle = if (tSingleBgMs != 0L) (now - tSingleBgMs) else -1
+        val dFromStatus  = if (tStatusMs  != 0L) (now - tStatusMs)  else -1
+
+        aapsLogger.debug(
+            LTag.WEAR,
+            "CircleWatchface: $tag -> invalidate(); ΔinvSincePrev=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status"
+        )
+        Log.d(TAG, "$tag -> invalidate(); ΔinvSincePrev=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status")
+        invalidate()
+    }
+
+    // ——— Геометрия/шрифты
+    private fun initGeometryAndScales() {
+        val display = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
+        display.getSize(displaySize)
+
+        rect = RectF(PADDING, PADDING, displaySize.x - PADDING, displaySize.y - PADDING)
+        rectDelete = RectF(
+            PADDING - CIRCLE_WIDTH / 2,
+            PADDING - CIRCLE_WIDTH / 2,
+            displaySize.x - PADDING + CIRCLE_WIDTH / 2,
+            displaySize.y - PADDING + CIRCLE_WIDTH / 2
+        )
+
+        initTextSizes()
+        prepareDrawTime()
+        addToWatchSet()
+    }
+
+    private fun initTextSizes() {
+        val big = if (sp.getBoolean(R.string.key_show_big_numbers, false)) 72f else 56f
+        val mid = if (sp.getBoolean(R.string.key_show_big_numbers, false)) 28f else 22f
+        val small = 18f
+
+        textPaintLarge.textSize = spToPx(big)
+        textPaintMid.textSize = spToPx(mid)
+        textPaintSmall.textSize = spToPx(small)
+        debugPaint.textSize = spToPx(12f)
+
+        val txtCol = textColor
+        textPaintLarge.color = txtCol
+        textPaintMid.color = txtCol
+        textPaintSmall.color = txtCol
+        debugPaint.color = txtCol
+    }
+
+    private fun spToPx(sp: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, resources.displayMetrics)
+
+    // ——— Расчёт колец/стрелок/цветов
+    @Synchronized
+    private fun prepareDrawTime() {
+        val cal = Calendar.getInstance()
+        val hour = cal[Calendar.HOUR_OF_DAY] % 12
+        val minute = cal[Calendar.MINUTE]
+        angleBig = ((hour + minute / 60f) / 12f * 360 - 90 - BIG_HAND_WIDTH / 2f + 360) % 360
+        angleSmall = (minute / 60f * 360 - 90 - SMALL_HAND_WIDTH / 2f + 360) % 360
+
+        ringColor = when (curSingleBg().sgvLevel.toInt()) {
+            -1 -> lowColor
+            0  -> inRangeColor
+            1  -> highColor
+            else -> inRangeColor
+        }
+
+        circlePaint.color = ringColor
+        circlePaint.strokeWidth = CIRCLE_WIDTH
+
+        removePaint.color = backgroundColor
+        removePaint.strokeWidth = CIRCLE_WIDTH * 3
+
+        overlapping = ALWAYS_HIGHLIGHT_SMALL || areOverlapping(
+            angleSmall, angleSmall + SMALL_HAND_WIDTH + NEAR,
+            angleBig, angleBig + BIG_HAND_WIDTH + NEAR
+        )
+    }
+
+    private fun areOverlapping(aBegin: Float, aEnd: Float, bBegin: Float, bEnd: Float): Boolean =
+        bBegin in aBegin..aEnd ||
+            (aBegin <= bBegin && bEnd > 360 && bEnd % 360 > aBegin) ||
+            aBegin in bBegin..bEnd ||
+            (bBegin <= aBegin && aEnd > 360 && aEnd % 360 > bBegin)
+
+    // ——— Рисование кольца времени (как раньше, но без layout)
+    private fun drawTimeRing(canvas: Canvas) {
+        // внешнее кольцо
+        canvas.drawArc(rect, 0f, 360f, false, circlePaint)
+        // вырезы под «стрелки»
+        canvas.drawArc(rectDelete, angleBig, BIG_HAND_WIDTH.toFloat(), false, removePaint)
+        canvas.drawArc(rectDelete, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, removePaint)
+
+        if (overlapping) {
+            // подсветка «малой» при наложении
+            val strong = Paint(circlePaint).apply { strokeWidth = CIRCLE_WIDTH * 2 }
+            canvas.drawArc(rect, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, strong)
+
+            // «внутреннее» стирание
+            val innerErase = Paint(removePaint).apply { strokeWidth = CIRCLE_WIDTH }
+            canvas.drawArc(rect, angleBig, BIG_HAND_WIDTH.toFloat(), false, innerErase)
+            canvas.drawArc(rect, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, innerErase)
+        }
+
+        // опциональная история (кольца за 30 минут)
+        if (sp.getBoolean(R.string.key_show_ring_history, false) && bgDataList.isNotEmpty()) {
+            addIndicator(canvas, 100f, Color.LTGRAY)
+            addIndicator(canvas, bgDataList.first().low.toFloat(), lowColor)
+            addIndicator(canvas, bgDataList.first().high.toFloat(), highColor)
+
+            val soft = sp.getBoolean("softRingHistory", true)
+            bgDataList.forEach { if (soft) addReadingSoft(canvas, it) else addReading(canvas, it) }
+        }
+    }
+
+    // ——— Рисуем тексты (SGV / Δ / мин назад / статус (кратко) / отладка)
+    private fun drawTexts(canvas: Canvas) {
+        val cx = displaySize.x / 2f
+        val cy = displaySize.y / 2f
+
+        val sbg = curSingleBg()
+        val status = curStatus()
+
+        // SGV (крупно)
+        canvas.drawText(sbg.sgvString, cx, cy - spToPx(8f), textPaintLarge)
+
+        // Delta (+ avgΔ)
+        val deltaLine = buildString {
+            if (sp.getBoolean(R.string.key_show_delta, true)) {
+                append(if (sp.getBoolean(R.string.key_show_detailed_delta, false)) sbg.deltaDetailed else sbg.delta)
+                if (sp.getBoolean(R.string.key_show_avg_delta, true)) {
+                    append("  ")
+                    append(if (sp.getBoolean(R.string.key_show_detailed_delta, false)) sbg.avgDeltaDetailed else sbg.avgDelta)
                 }
             }
         }
+        if (deltaLine.isNotEmpty()) {
+            canvas.drawText(deltaLine, cx, cy + spToPx(24f), textPaintMid)
+        }
+
+        // "Минуты назад"
+        if (sp.getBoolean(R.string.key_show_ago, true)) {
+            canvas.drawText(minutesFrom(sbg.timeStamp), cx, cy + spToPx(48f), textPaintSmall)
+        }
+
+        // Короткий статус (IOB/BGI по настройке)
+        if (sp.getBoolean(R.string.key_show_external_status, true)) {
+            val detailedIob = sp.getBoolean(R.string.key_show_detailed_iob, false)
+            val showBgi = sp.getBoolean(R.string.key_show_bgi, false)
+            val iobStr = if (detailedIob) "${status.iobSum} ${status.iobDetail}" else status.iobSum + getString(R.string.units_short)
+            val statLine = if (showBgi) "${status.externalStatus}  $iobStr  ${status.bgi}" else "${status.externalStatus}  $iobStr"
+            canvas.drawText(statLine, cx, cy + spToPx(68f), textPaintSmall)
+        }
+
+        // Отладка: lastUpdate:+Xs
+        val sinceInbound = (SystemClock.elapsedRealtime() - lastInboundElapsed) / 1000
+        canvas.drawText(
+            "lastUpdate: +${sinceInbound}s  Δinv:${lastUpdateToInvalidateMs}ms",
+            PADDING,
+            displaySize.y - PADDING,
+            debugPaint
+        )
     }
 
-    @Synchronized fun addToWatchSet() {
+    // ——— Утилиты истории/рисования чтений
+    private fun minutesFrom(ts: Long): String =
+        if (ts == 0L) "--'"
+        else floor((System.currentTimeMillis() - ts) / 60000.0).toInt().toString() + "'"
+
+    private fun addToWatchSet() {
         bgDataList.clear()
         if (!sp.getBoolean(R.string.key_show_ring_history, false)) return
-        val threshold = (System.currentTimeMillis() - 1000L * 60 * 30).toDouble() // 30 min
-        for (entry in graphData.entries) if (entry.timeStamp >= threshold) bgDataList.add(entry)
-        aapsLogger.debug(LTag.WEAR, "addToWatchSet size=" + bgDataList.size)
+        val threshold = (System.currentTimeMillis() - 1000L * 60 * 30).toDouble() // 30 мин
+        for (e in curGraph().entries) if (e.timeStamp >= threshold) bgDataList.add(e)
+        aapsLogger.debug(LTag.WEAR, "addToWatchSet size=${bgDataList.size}")
     }
 
     private fun darken(color: Int): Int {
-        var red = Color.red(color)
-        var green = Color.green(color)
-        var blue = Color.blue(color)
-        red = darkenColor(red)
-        green = darkenColor(green)
-        blue = darkenColor(blue)
-        val alpha = Color.alpha(color)
-        return Color.argb(alpha, red, green, blue)
-    }
-
-    private fun darkenColor(color: Int): Int {
-        return max(color - color * fraction, 0.0).toInt()
+        fun dark(c: Int) = max(c - c * fraction, 0.0).toInt()
+        return Color.argb(Color.alpha(color), dark(Color.red(color)), dark(Color.green(color)), dark(Color.blue(color)))
     }
 
     private fun addArch(canvas: Canvas, offset: Float, color: Int, size: Float) {
-        val paint = Paint()
-        paint.color = color
-        val rectTemp =
-            RectF(PADDING + offset - CIRCLE_WIDTH / 2, PADDING + offset - CIRCLE_WIDTH / 2, displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2, displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2)
-        canvas.drawArc(rectTemp, 270f, size, true, paint)
+        val rectTemp = RectF(
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2,
+            displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2
+        )
+        val p = Paint().apply { this.color = color }
+        canvas.drawArc(rectTemp, 270f, size, true, p)
     }
 
     private fun addArch(canvas: Canvas, start: Float, offset: Float, color: Int, size: Float) {
-        val paint = Paint()
-        paint.color = color
-        val rectTemp =
-            RectF(PADDING + offset - CIRCLE_WIDTH / 2, PADDING + offset - CIRCLE_WIDTH / 2, displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2, displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2)
-        canvas.drawArc(rectTemp, start + 270, size, true, paint)
+        val rectTemp = RectF(
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2,
+            displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2
+        )
+        val p = Paint().apply { this.color = color }
+        canvas.drawArc(rectTemp, start + 270, size, true, p)
     }
 
     private fun addIndicator(canvas: Canvas, bg: Float, color: Int) {
-        var convertedBg: Float = bgToAngle(bg)
-        convertedBg += 270f
-        val paint = Paint()
-        paint.color = color
+        val converted = bgToAngle(bg) + 270f
         val offset = 9f
-        val rectTemp =
-            RectF(PADDING + offset - CIRCLE_WIDTH / 2, PADDING + offset - CIRCLE_WIDTH / 2, displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2, displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2)
-        canvas.drawArc(rectTemp, convertedBg, 2f, true, paint)
+        val rectTemp = RectF(
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            PADDING + offset - CIRCLE_WIDTH / 2,
+            displaySize.x - PADDING - offset + CIRCLE_WIDTH / 2,
+            displaySize.y - PADDING - offset + CIRCLE_WIDTH / 2
+        )
+        val p = Paint().apply { this.color = color }
+        canvas.drawArc(rectTemp, converted, 2f, true, p)
     }
 
-    private fun bgToAngle(bg: Float): Float {
-        return if (bg > 100) {
-            (bg - 100f) / 300f * 225f + 135
-        } else {
-            bg / 100 * 135
-        }
-    }
+    private fun bgToAngle(bg: Float): Float =
+        if (bg > 100) ((bg - 100f) / 300f * 225f + 135) else (bg / 100 * 135)
 
-    private fun addReadingSoft(canvas: Canvas, entry: SingleBg) {
-        aapsLogger.debug(LTag.WEAR, "addReadingSoft")
-        var color = Color.LTGRAY
-        if (sp.getBoolean(R.string.key_dark, true)) {
-            color = Color.DKGRAY
-        }
+    private fun addReadingSoft(canvas: Canvas, entry: EventData.SingleBg) {
+        val color = if (sp.getBoolean(R.string.key_dark, true)) Color.DKGRAY else Color.LTGRAY
         val offsetMultiplier = (displaySize.x / 2f - PADDING) / 12f
         val offset = max(1.0, ceil((System.currentTimeMillis() - entry.timeStamp) / (1000 * 60 * 5.0))).toFloat()
-        val size: Double = bgToAngle(entry.sgv.toFloat()).toDouble()
-        addArch(canvas, offset * offsetMultiplier + 10, color, size.toFloat())
-        addArch(canvas, size.toFloat(), offset * offsetMultiplier + 10, backgroundColor, (360 - size).toFloat())
+        val size = bgToAngle(entry.sgv.toFloat())
+        addArch(canvas, offset * offsetMultiplier + 10, color, size)
+        addArch(canvas, size, offset * offsetMultiplier + 10, backgroundColor, (360 - size))
         addArch(canvas, (offset + .8f) * offsetMultiplier + 10, backgroundColor, 360f)
     }
 
-    private fun addReading(canvas: Canvas, entry: SingleBg) {
-        aapsLogger.debug(LTag.WEAR, "addReading")
-        var color = Color.LTGRAY
-        var indicatorColor = Color.DKGRAY
-        if (sp.getBoolean(R.string.key_dark, true)) {
-            color = Color.DKGRAY
-            indicatorColor = Color.LTGRAY
-        }
+    private fun addReading(canvas: Canvas, entry: EventData.SingleBg) {
+        val color = if (sp.getBoolean(R.string.key_dark, true)) Color.DKGRAY else Color.LTGRAY
+        var indicatorColor = if (sp.getBoolean(R.string.key_dark, true)) Color.LTGRAY else Color.DKGRAY
+
         var barColor = Color.GRAY
         if (entry.sgv >= entry.high) {
             indicatorColor = highColor
@@ -405,19 +462,39 @@ class CircleWatchface : WatchFace() {
             indicatorColor = lowColor
             barColor = darken(lowColor)
         }
+
         val offsetMultiplier = (displaySize.x / 2f - PADDING) / 12f
         val offset = max(1.0, ceil((System.currentTimeMillis() - entry.timeStamp) / (1000 * 60 * 5.0))).toFloat()
-        val size: Double = bgToAngle(entry.sgv.toFloat()).toDouble()
-        addArch(canvas, offset * offsetMultiplier + 11, barColor, size.toFloat() - 2) // Dark Color Bar
-        addArch(canvas, size.toFloat() - 2, offset * offsetMultiplier + 11, indicatorColor, 2f) // Indicator at end of bar
-        addArch(canvas, size.toFloat(), offset * offsetMultiplier + 11, color, (360f - size).toFloat()) // Dark fill
+        val size = bgToAngle(entry.sgv.toFloat())
+        addArch(canvas, offset * offsetMultiplier + 11, barColor, size - 2)            // тёмная полоса
+        addArch(canvas, size - 2, offset * offsetMultiplier + 11, indicatorColor, 2f)  // индикатор на конце
+        addArch(canvas, size, offset * offsetMultiplier + 11, color, (360f - size))    // тёмная заливка
         addArch(canvas, (offset + .8f) * offsetMultiplier + 11, backgroundColor, 360f)
     }
 
+    // ——— Цвета (зависят от темы)
+    private val lowColor: Int
+        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 255, 120, 120) else Color.argb(255, 255, 80, 80)
+    private val inRangeColor: Int
+        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 120, 255, 120) else Color.argb(255, 0, 240, 0)
+    private val highColor: Int
+        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 255, 255, 120) else Color.argb(255, 255, 200, 0)
+    private val backgroundColor: Int
+        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.BLACK else Color.WHITE
+    private val textColor: Int
+        get() = if (sp.getBoolean(R.string.key_dark, true)) Color.WHITE else Color.BLACK
+
+    // ——— Тап по SGV: двойной тап открывает меню (сохраняем поведение)
+    private var sgvTapTime: Long = 0
     override fun onTapCommand(tapType: Int, x: Int, y: Int, eventTime: Long) {
-        mSgv?.let { mSgv ->
-            val extra = (mSgv.right - mSgv.left) / 2
-            if (tapType == TAP_TYPE_TAP && x + extra >= mSgv.left && x - extra <= mSgv.right && y >= mSgv.top && y <= mSgv.bottom) {
+        // Центр экрана считаем зоной SGV (радиус 100dp)
+        if (tapType == TAP_TYPE_TAP) {
+            val cx = displaySize.x / 2f
+            val cy = displaySize.y / 2f
+            val dx = x - cx
+            val dy = y - cy
+            val radiusPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 100f, resources.displayMetrics)
+            if (dx * dx + dy * dy <= radiusPx * radiusPx) {
                 if (eventTime - sgvTapTime < 800) {
                     val intent = Intent(this, MainMenuActivity::class.java)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -428,7 +505,8 @@ class CircleWatchface : WatchFace() {
         }
     }
 
-    override fun getWatchFaceStyle(): WatchFaceStyle {
-        return WatchFaceStyle.Builder(this).setAcceptsTapEvents(true).build()
-    }
+    override fun getWatchFaceStyle(): WatchFaceStyle =
+        WatchFaceStyle.Builder(this)
+            .setAcceptsTapEvents(true)
+            .build()
 }

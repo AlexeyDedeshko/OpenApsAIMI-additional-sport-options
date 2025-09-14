@@ -6,8 +6,7 @@ import android.util.Log
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.*
-import android.os.PowerManager
-import android.os.SystemClock
+import android.os.*
 import android.support.wearable.watchface.WatchFaceStyle
 import android.util.TypedValue
 import android.view.WindowManager
@@ -81,10 +80,10 @@ class CircleWatchface : WatchFace() {
         style = Paint.Style.STROKE
         strokeWidth = CIRCLE_WIDTH
     }
-    private val textPaintLarge = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val textPaintMid = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val textPaintSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.LEFT }
+    private val textPaintLarge = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.AlignCENTER }
+    private val textPaintMid   = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.AlignCENTER }
+    private val textPaintSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.AlignCENTER }
+    private val debugPaint     = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.AlignLEFT  }
 
     private val bgDataList = ArrayList<EventData.SingleBg>()
 
@@ -94,6 +93,15 @@ class CircleWatchface : WatchFace() {
 
     private var tSingleBgMs: Long = 0L
     private var tStatusMs: Long = 0L
+
+    // Хэндлер для отложенного второго invalidate (после “подсветки” экрана)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // В этой ветке агрессивная перерисовка включена по умолчанию.
+    // Если добавишь ключ в strings.xml -> preference, можно переключать:
+    // val aggressive = sp.getBoolean(R.string.key_aggressive_redraw_in_ambient, true)
+    private val aggressive: Boolean
+        get() = true
 
     @SuppressLint("WakelockTimeout")
     override fun onCreate() {
@@ -150,7 +158,7 @@ class CircleWatchface : WatchFace() {
             .subscribe {
                 latestStatus = it
                 tStatusMs = SystemClock.elapsedRealtime()
-                redrawWithWakeLock("Status")
+                redraw(tag = "Status")
             }
 
         // SingleBg
@@ -160,7 +168,7 @@ class CircleWatchface : WatchFace() {
                 latestSingleBg = it
                 tSingleBgMs = SystemClock.elapsedRealtime()
                 prepareDrawTime()
-                redrawWithWakeLock("SingleBg")
+                redraw(tag = "SingleBg")
             }
 
         // GraphData
@@ -169,7 +177,7 @@ class CircleWatchface : WatchFace() {
             .subscribe {
                 latestGraph = it
                 addToWatchSet()
-                redrawWithWakeLock("GraphData")
+                redraw(tag = "GraphData")
             }
 
         // Preferences
@@ -178,19 +186,58 @@ class CircleWatchface : WatchFace() {
             .subscribe {
                 initTextSizes()
                 prepareDrawTime()
-                redrawWithWakeLock("Preferences")
+                redraw(tag = "Preferences")
             }
     }
 
-    // 🔋 Новый метод — гарантирует invalidate с коротким wakeLock
+    // Единая точка: либо обычный redraw с CPU wake, либо агрессивный (CPU+подсветка) + двойной invalidate
+    private fun redraw(tag: String) {
+        if (aggressive) {
+            redrawAggressive(tag)
+        } else {
+            redrawWithWakeLock(tag)
+        }
+    }
+
+    // Обычный: будим CPU на короткое время
     private fun redrawWithWakeLock(tag: String) {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface_redraw")
-        wl.acquire(2000) // держим CPU до 2 секунд
-
+        val wlCpu = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:WF_redraw_cpu")
+        wlCpu.acquire(2000)
         fastRedraw(tag)
+        if (wlCpu.isHeld) wlCpu.release()
+    }
 
-        wl.release()
+    // Агрессивный: будим CPU и “подсвечиваем” экран (dim) кратко + двойной invalidate
+    private fun redrawAggressive(tag: String) {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        val wlCpu = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:WF_aggr_cpu")
+        // SCREEN_DIM_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP — DEPRECATED, но на Wear всё ещё работает для мягкого “подсвета”
+        val flags = PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP
+        val wlScreen = pm.newWakeLock(flags, "AndroidAPS:WF_aggr_screen")
+
+        try {
+            wlCpu.acquire(2000)
+            wlScreen.acquire(1500) // мягко подсветить/разбудить Surface
+
+            aapsLogger.debug(LTag.WEAR, "CircleWatchface: FORCE REDRAW (aggressive) -> wake screen & CPU")
+            Log.d(TAG, "FORCE REDRAW (aggressive) -> wake screen & CPU")
+
+            // Первый invalidate — сразу (отрисовка в момент подсветки)
+            fastRedraw("$tag(aggr#1)")
+
+            // Второй — через ~400мс (на случай переключения ambient→interactive)
+            mainHandler.postDelayed({
+                                        fastRedraw("$tag(aggr#2)")
+                                    }, 400L)
+
+        } finally {
+            // Отпускаем через чуть-чуть, чтобы кадры успели пройти
+            mainHandler.postDelayed({
+                                        if (wlScreen.isHeld) wlScreen.release()
+                                        if (wlCpu.isHeld) wlCpu.release()
+                                    }, 800L)
+        }
     }
 
     private fun fastRedraw(tag: String) {
@@ -206,9 +253,6 @@ class CircleWatchface : WatchFace() {
 
         invalidate()
     }
-
-    // ... (остальная часть файла — отрисовка колец, текста и пр. — без изменений)
-    // оставляем твою текущую реализацию drawTimeRing, drawTexts, addReading, цвета и onTapCommand.
 
     // ——— Геометрия/шрифты
     private fun initGeometryAndScales() {
@@ -234,15 +278,15 @@ class CircleWatchface : WatchFace() {
         val small = 18f
 
         textPaintLarge.textSize = spToPx(big)
-        textPaintMid.textSize = spToPx(mid)
+        textPaintMid.textSize   = spToPx(mid)
         textPaintSmall.textSize = spToPx(small)
-        debugPaint.textSize = spToPx(12f)
+        debugPaint.textSize     = spToPx(12f)
 
         val txtCol = textColor
         textPaintLarge.color = txtCol
-        textPaintMid.color = txtCol
+        textPaintMid.color   = txtCol
         textPaintSmall.color = txtCol
-        debugPaint.color = txtCol
+        debugPaint.color     = txtCol
     }
 
     private fun spToPx(sp: Float): Float =
@@ -282,26 +326,21 @@ class CircleWatchface : WatchFace() {
             aBegin in bBegin..bEnd ||
             (bBegin <= aBegin && aEnd > 360 && aEnd % 360 > bBegin)
 
-    // ——— Рисование кольца времени (как раньше, но без layout)
+    // ——— Рисование кольца времени
     private fun drawTimeRing(canvas: Canvas) {
-        // внешнее кольцо
         canvas.drawArc(rect, 0f, 360f, false, circlePaint)
-        // вырезы под «стрелки»
         canvas.drawArc(rectDelete, angleBig, BIG_HAND_WIDTH.toFloat(), false, removePaint)
         canvas.drawArc(rectDelete, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, removePaint)
 
         if (overlapping) {
-            // подсветка «малой» при наложении
             val strong = Paint(circlePaint).apply { strokeWidth = CIRCLE_WIDTH * 2 }
             canvas.drawArc(rect, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, strong)
 
-            // «внутреннее» стирание
             val innerErase = Paint(removePaint).apply { strokeWidth = CIRCLE_WIDTH }
             canvas.drawArc(rect, angleBig, BIG_HAND_WIDTH.toFloat(), false, innerErase)
             canvas.drawArc(rect, angleSmall, SMALL_HAND_WIDTH.toFloat(), false, innerErase)
         }
 
-        // опциональная история (кольца за 30 минут)
         if (sp.getBoolean(R.string.key_show_ring_history, false) && bgDataList.isNotEmpty()) {
             addIndicator(canvas, 100f, Color.LTGRAY)
             addIndicator(canvas, bgDataList.first().low.toFloat(), lowColor)
@@ -312,7 +351,7 @@ class CircleWatchface : WatchFace() {
         }
     }
 
-    // ——— Рисуем тексты (SGV / Δ / мин назад / статус (кратко) / отладка)
+    // ——— Рисуем тексты
     private fun drawTexts(canvas: Canvas) {
         val cx = displaySize.x / 2f
         val cy = displaySize.y / 2f
@@ -320,10 +359,8 @@ class CircleWatchface : WatchFace() {
         val sbg = curSingleBg()
         val status = curStatus()
 
-        // SGV (крупно)
         canvas.drawText(sbg.sgvString, cx, cy - spToPx(8f), textPaintLarge)
 
-        // Delta (+ avgΔ)
         val deltaLine = buildString {
             if (sp.getBoolean(R.string.key_show_delta, true)) {
                 append(if (sp.getBoolean(R.string.key_show_detailed_delta, false)) sbg.deltaDetailed else sbg.delta)
@@ -337,12 +374,10 @@ class CircleWatchface : WatchFace() {
             canvas.drawText(deltaLine, cx, cy + spToPx(24f), textPaintMid)
         }
 
-        // "Минуты назад"
         if (sp.getBoolean(R.string.key_show_ago, true)) {
             canvas.drawText(minutesFrom(sbg.timeStamp), cx, cy + spToPx(48f), textPaintSmall)
         }
 
-        // Короткий статус (IOB/BGI по настройке)
         if (sp.getBoolean(R.string.key_show_external_status, true)) {
             val detailedIob = sp.getBoolean(R.string.key_show_detailed_iob, false)
             val showBgi = sp.getBoolean(R.string.key_show_bgi, false)
@@ -351,17 +386,11 @@ class CircleWatchface : WatchFace() {
             canvas.drawText(statLine, cx, cy + spToPx(68f), textPaintSmall)
         }
 
-        // Отладка: lastUpdate:+Xs
         val sinceInbound = (SystemClock.elapsedRealtime() - lastInboundElapsed) / 1000
-        canvas.drawText(
-            "lastUpdate: +${sinceInbound}s  Δinv:${lastUpdateToInvalidateMs}ms",
-            PADDING,
-            displaySize.y - PADDING,
-            debugPaint
-        )
+        canvas.drawText("lastUpdate: +${sinceInbound}s  Δinv:${lastUpdateToInvalidateMs}ms",
+                        PADDING, displaySize.y - PADDING, debugPaint)
     }
 
-    // ——— Утилиты истории/рисования чтений
     private fun minutesFrom(ts: Long): String =
         if (ts == 0L) "--'"
         else floor((System.currentTimeMillis() - ts) / 60000.0).toInt().toString() + "'"
@@ -369,7 +398,7 @@ class CircleWatchface : WatchFace() {
     private fun addToWatchSet() {
         bgDataList.clear()
         if (!sp.getBoolean(R.string.key_show_ring_history, false)) return
-        val threshold = (System.currentTimeMillis() - 1000L * 60 * 30).toDouble() // 30 мин
+        val threshold = (System.currentTimeMillis() - 1000L * 60 * 30).toDouble()
         for (e in curGraph().entries) if (e.timeStamp >= threshold) bgDataList.add(e)
         aapsLogger.debug(LTag.WEAR, "addToWatchSet size=${bgDataList.size}")
     }
@@ -443,13 +472,12 @@ class CircleWatchface : WatchFace() {
         val offsetMultiplier = (displaySize.x / 2f - PADDING) / 12f
         val offset = max(1.0, ceil((System.currentTimeMillis() - entry.timeStamp) / (1000 * 60 * 5.0))).toFloat()
         val size = bgToAngle(entry.sgv.toFloat())
-        addArch(canvas, offset * offsetMultiplier + 11, barColor, size - 2)            // тёмная полоса
-        addArch(canvas, size - 2, offset * offsetMultiplier + 11, indicatorColor, 2f)  // индикатор на конце
-        addArch(canvas, size, offset * offsetMultiplier + 11, color, (360f - size))    // тёмная заливка
+        addArch(canvas, offset * offsetMultiplier + 11, barColor, size - 2)
+        addArch(canvas, size - 2, offset * offsetMultiplier + 11, indicatorColor, 2f)
+        addArch(canvas, size, offset * offsetMultiplier + 11, color, (360f - size))
         addArch(canvas, (offset + .8f) * offsetMultiplier + 11, backgroundColor, 360f)
     }
 
-    // ——— Цвета (зависят от темы)
     private val lowColor: Int
         get() = if (sp.getBoolean(R.string.key_dark, true)) Color.argb(255, 255, 120, 120) else Color.argb(255, 255, 80, 80)
     private val inRangeColor: Int
@@ -461,10 +489,8 @@ class CircleWatchface : WatchFace() {
     private val textColor: Int
         get() = if (sp.getBoolean(R.string.key_dark, true)) Color.WHITE else Color.BLACK
 
-    // ——— Тап по SGV: двойной тап открывает меню (сохраняем поведение)
     private var sgvTapTime: Long = 0
     override fun onTapCommand(tapType: Int, x: Int, y: Int, eventTime: Long) {
-        // Центр экрана считаем зоной SGV (радиус 100dp)
         if (tapType == TAP_TYPE_TAP) {
             val cx = displaySize.x / 2f
             val cy = displaySize.y / 2f

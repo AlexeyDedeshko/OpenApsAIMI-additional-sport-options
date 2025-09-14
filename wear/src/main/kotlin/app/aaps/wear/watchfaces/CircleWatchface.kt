@@ -1,6 +1,7 @@
 @file:Suppress("DEPRECATION")
 
 package app.aaps.wear.watchfaces
+
 import android.util.Log
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -43,11 +44,8 @@ class CircleWatchface : WatchFace() {
     @Inject lateinit var persistence: Persistence
 
     private val disposable = CompositeDisposable()
-
-    // ——— Источник данных как раньше
     private val rawData = RawDisplayData()
 
-    // ——— Локальные «быстрые» снапшоты для мгновенного обновления экрана:
     private var latestSingleBg: EventData.SingleBg? = null
     private var latestStatus: EventData.Status? = null
     private var latestGraph: EventData.GraphData? = null
@@ -56,12 +54,10 @@ class CircleWatchface : WatchFace() {
     private fun curStatus(): EventData.Status = latestStatus ?: rawData.status
     private fun curGraph(): EventData.GraphData = latestGraph ?: rawData.graphData
 
-    // ——— Габариты и геометрия
     private val displaySize = Point()
     private lateinit var rect: RectF
     private lateinit var rectDelete: RectF
 
-    // ——— Параметры отрисовки
     companion object {
         const val PADDING = 20f
         const val CIRCLE_WIDTH = 10f
@@ -72,13 +68,11 @@ class CircleWatchface : WatchFace() {
         const val fraction = .5
     }
 
-    // ——— Углы стрелок/цвет
     private var angleBig = 0f
     private var angleSmall = 0f
     private var ringColor = 0
     private var overlapping = false
 
-    // ——— Paints (кэшируем)
     private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = CIRCLE_WIDTH
@@ -87,28 +81,17 @@ class CircleWatchface : WatchFace() {
         style = Paint.Style.STROKE
         strokeWidth = CIRCLE_WIDTH
     }
-    private val textPaintLarge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-    }
-    private val textPaintMid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-    }
-    private val textPaintSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-    }
-    private val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.LEFT
-    }
+    private val textPaintLarge = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val textPaintMid = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val textPaintSmall = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.LEFT }
 
-    // ——— История на кольце
     private val bgDataList = ArrayList<EventData.SingleBg>()
 
-    // ——— Отладка задержек
     private var lastInboundElapsed: Long = SystemClock.elapsedRealtime()
     private var lastDrawElapsed: Long = SystemClock.elapsedRealtime()
     private var lastUpdateToInvalidateMs: Long = 0L
 
-    // ——— Новые поля для точной метрики
     private var tSingleBgMs: Long = 0L
     private var tStatusMs: Long = 0L
 
@@ -122,8 +105,7 @@ class CircleWatchface : WatchFace() {
             acquire(30_000)
             initGeometryAndScales()
             subscribeToBus()
-            rawData.updateFromPersistence(persistence) // стартовый снэпшот
-            // запросим полную посылку при запуске
+            rawData.updateFromPersistence(persistence)
             rxBus.send(EventWearToMobile(EventData.ActionResendData("CircleWatchFace::onCreate")))
             release()
         }
@@ -134,14 +116,9 @@ class CircleWatchface : WatchFace() {
         super.onDestroy()
     }
 
-    // ——— Отрисовка
     @Synchronized
     override fun onDraw(canvas: Canvas) {
-        // отметка «через сколько после invalidate() пришли в onDraw()»
-        aapsLogger.debug(
-            LTag.WEAR,
-            "CircleWatchface: onDraw(); +${SystemClock.elapsedRealtime() - lastInboundElapsed}ms after invalidate()"
-        )
+        aapsLogger.debug(LTag.WEAR, "CircleWatchface: onDraw(); +${SystemClock.elapsedRealtime() - lastInboundElapsed}ms after invalidate()")
         Log.d(TAG, "onDraw(); +${SystemClock.elapsedRealtime() - lastInboundElapsed}ms after invalidate()")
 
         val bgCol = backgroundColor
@@ -153,68 +130,67 @@ class CircleWatchface : WatchFace() {
         lastDrawElapsed = SystemClock.elapsedRealtime()
     }
 
-    // ——— Обновление раз в минуту только геометрии/стрелок
     override fun onTimeChanged(oldTime: WatchFaceTime, newTime: WatchFaceTime) {
         if (oldTime.hasMinuteChanged(newTime)) {
             val pm = getSystemService(POWER_SERVICE) as PowerManager
             pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface_onTimeChanged").apply {
                 acquire(3_000)
-                prepareDrawTime() // только время и цвет кольца
+                prepareDrawTime()
                 invalidate()
                 release()
             }
         }
     }
 
-    // ——— Подписки на события — МГНОВЕННОЕ обновление
+    // Подписки на события
     private fun subscribeToBus() {
         // Status
-        disposable += rxBus
-            .toObservable(EventData.Status::class.java)
+        disposable += rxBus.toObservable(EventData.Status::class.java)
             .observeOn(aapsSchedulers.main)
             .subscribe {
                 latestStatus = it
                 tStatusMs = SystemClock.elapsedRealtime()
-                aapsLogger.debug(LTag.WEAR, "CircleWatchface: Rx Status at ${tStatusMs}ms")
-                Log.d(TAG, "Rx Status at ${tStatusMs}ms")
-                rawData.updateFromPersistence(persistence) // для совместимости со старой логикой
-                addToWatchSet()
-                fastRedraw("Status")
+                redrawWithWakeLock("Status")
             }
 
         // SingleBg
-        disposable += rxBus
-            .toObservable(EventData.SingleBg::class.java)
+        disposable += rxBus.toObservable(EventData.SingleBg::class.java)
             .observeOn(aapsSchedulers.main)
             .subscribe {
                 latestSingleBg = it
                 tSingleBgMs = SystemClock.elapsedRealtime()
-                aapsLogger.debug(LTag.WEAR, "CircleWatchface: Rx SingleBg at ${tSingleBgMs}ms")
-                Log.d(TAG, "Rx SingleBg at ${tSingleBgMs}ms")
-                // цвет/стрелки зависят от BG — пересчитаем
                 prepareDrawTime()
-                fastRedraw("SingleBg")
+                redrawWithWakeLock("SingleBg")
             }
 
         // GraphData
-        disposable += rxBus
-            .toObservable(EventData.GraphData::class.java)
+        disposable += rxBus.toObservable(EventData.GraphData::class.java)
             .observeOn(aapsSchedulers.main)
             .subscribe {
                 latestGraph = it
                 addToWatchSet()
-                fastRedraw("GraphData")
+                redrawWithWakeLock("GraphData")
             }
 
         // Preferences
-        disposable += rxBus
-            .toObservable(EventData.Preferences::class.java)
+        disposable += rxBus.toObservable(EventData.Preferences::class.java)
             .observeOn(aapsSchedulers.main)
             .subscribe {
-                initTextSizes() // могли измениться «крупные цифры»
+                initTextSizes()
                 prepareDrawTime()
-                fastRedraw("Preferences")
+                redrawWithWakeLock("Preferences")
             }
+    }
+
+    // 🔋 Новый метод — гарантирует invalidate с коротким wakeLock
+    private fun redrawWithWakeLock(tag: String) {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AndroidAPS:CircleWatchface_redraw")
+        wl.acquire(2000) // держим CPU до 2 секунд
+
+        fastRedraw(tag)
+
+        wl.release()
     }
 
     private fun fastRedraw(tag: String) {
@@ -223,15 +199,16 @@ class CircleWatchface : WatchFace() {
         lastInboundElapsed = now
 
         val dFromSingle = if (tSingleBgMs != 0L) (now - tSingleBgMs) else -1
-        val dFromStatus  = if (tStatusMs  != 0L) (now - tStatusMs)  else -1
+        val dFromStatus = if (tStatusMs != 0L) (now - tStatusMs) else -1
 
-        aapsLogger.debug(
-            LTag.WEAR,
-            "CircleWatchface: $tag -> invalidate(); ΔinvSincePrev=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status"
-        )
-        Log.d(TAG, "$tag -> invalidate(); ΔinvSincePrev=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status")
+        aapsLogger.debug(LTag.WEAR, "CircleWatchface: $tag -> invalidate(); Δinv=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status")
+        Log.d(TAG, "$tag -> invalidate(); Δinv=${lastUpdateToInvalidateMs}ms; +${dFromSingle}ms since SingleBg; +${dFromStatus}ms since Status")
+
         invalidate()
     }
+
+    // ... (остальная часть файла — отрисовка колец, текста и пр. — без изменений)
+    // оставляем твою текущую реализацию drawTimeRing, drawTexts, addReading, цвета и onTapCommand.
 
     // ——— Геометрия/шрифты
     private fun initGeometryAndScales() {

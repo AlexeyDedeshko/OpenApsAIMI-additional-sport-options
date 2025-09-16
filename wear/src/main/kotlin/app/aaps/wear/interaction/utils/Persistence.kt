@@ -40,6 +40,11 @@ open class Persistence @Inject constructor(
 
         const val CUSTOM_WATCHFACE = "custom_watchface"
         const val CUSTOM_DEFAULT_WATCHFACE = "custom_default_watchface"
+
+        // Watchdog/keepalive конфиг (ключи в SharedPreferences)
+        const val KEY_WATCHDOG_KEEPALIVE_PERIOD_MS = "watchdog_keepalive_period_ms"   // int, default 20000
+        const val KEY_WATCHDOG_SOFT_TIMEOUT_MS    = "watchdog_soft_timeout_ms"        // int, default 90000
+        const val KEY_WATCHDOG_HARD_TIMEOUT_MS    = "watchdog_hard_timeout_ms"        // int, default 150000
     }
 
     fun getString(key: String, defaultValue: String): String {
@@ -255,4 +260,7 @@ open class Persistence @Inject constructor(
         aapsLogger.debug(LTag.WEAR, "TURNING OFF all active complications")
         putString(KEY_COMPLICATIONS, "")
     }
+    // Небольшие помощники под int, если пригодятся где-то ещё
+    fun getInt(key: String, defaultValue: Int): Int = sp.getInt(key, defaultValue)
+    fun putInt(key: String, value: Int) = sp.putInt(key, value)
 }

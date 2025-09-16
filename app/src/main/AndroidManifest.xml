@@ -153,6 +153,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- AAPS → Wear: сервис снапшотов и его тик-ресивер -->
+        <service
+            android:name=".services.WearSnapshotService"
+            android:exported="false" />
+
+        <receiver
+            android:name=".services.WearSnapshotService$WearSnapshotTickReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

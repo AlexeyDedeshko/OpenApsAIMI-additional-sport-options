@@ -49,6 +49,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.ExperimentalSerializationApi
 import javax.inject.Inject
+import com.google.android.gms.wearable.DataMapItem
+
+// ADD: imports for foreground service types
+import android.os.Build
+import android.content.pm.ServiceInfo
 
 class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient.OnCapabilityChangedListener {
     private val TAG = "DataLayerListenerServiceWear"
@@ -67,6 +72,21 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
 
     private var lastInboundMs: Long = SystemClock.elapsedRealtime()
     private var lastPingMs: Long = 0L
+
+    private fun withWake(block: () -> Unit) {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:wake")
+        wl.setReferenceCounted(false)
+        try { wl.acquire(10_000); block() } finally { if (wl.isHeld) wl.release() }
+    }
+
+    // --- watchdog/keepalive constants (hardcoded for now) ---
+    private val KEEPALIVE_PERIOD_MS: Long = 10_000L      // тик каждые 10с
+    private val WATCHDOG_SOFT_TIMEOUT_MS: Long = 35_000L // мягкий нудж ~35с
+    private val WATCHDOG_HARD_TIMEOUT_MS: Long = 60_000L // жесткая попытка ~60с
+
+    // для подавления повторной эскалации до следующего inbound
+    private var escalationLevel: Int = 0
 
     private val disposable = CompositeDisposable()
     private var heartRateListener: HeartRateListener? = null
@@ -129,23 +149,85 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         dataEvents.forEach { event ->
-            if (event.type == DataEvent.TYPE_CHANGED) {
-                val path = event.dataItem.uri.path
-                aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, item=${event.dataItem}")
+            if (event.type != DataEvent.TYPE_CHANGED) return@forEach
 
-                when (path) {
-                    "/aaps/overview" -> {
-                        try {
-                            val dmi = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem)
-                            val dm = dmi.dataMap
-                            aapsLogger.debug(LTag.WEAR, "$TAG overview dm keys=${dm.keySet()}")
-                        } catch (e: Exception) {
-                            aapsLogger.error(LTag.WEAR, "$TAG onDataChanged(/aaps/overview) failed", e)
+            val path = event.dataItem.uri.path
+            aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: Path: $path, item=${event.dataItem}")
+            escalationLevel = 0
+            lastInboundMs = SystemClock.elapsedRealtime()
+
+            when (path) {
+
+                "/aaps/overview" -> {
+                    try {
+                        val dmi = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem)
+                        val dm = dmi.dataMap
+                        aapsLogger.debug(LTag.WEAR, "$TAG overview dm keys=${dm.keySet()}")
+                    } catch (e: Exception) {
+                        aapsLogger.error(LTag.WEAR, "$TAG onDataChanged(/aaps/overview) failed", e)
+                    }
+                }
+
+                "/aaps/snapshot" -> {
+                    try {
+                        val dmi = com.google.android.gms.wearable.DataMapItem.fromDataItem(event.dataItem)
+                        val dm = dmi.dataMap
+
+                        val singleJson = dm.getString("singleJson")
+                        val statusJson = dm.getString("statusJson")
+
+                        var delivered = false
+
+                        // Вариант 1: сериализованные объекты
+                        if (singleJson != null) {
+                            val single = app.aaps.core.interfaces.rx.weardata.EventData
+                                .deserialize(singleJson) as app.aaps.core.interfaces.rx.weardata.EventData.SingleBg
+                            rxBus.send(single)
+                            delivered = true
                         }
+                        if (statusJson != null) {
+                            val st = app.aaps.core.interfaces.rx.weardata.EventData
+                                .deserialize(statusJson) as app.aaps.core.interfaces.rx.weardata.EventData.Status
+                            rxBus.send(st)
+                        }
+
+                        // Вариант 2: примитивы -> собрать SingleBg по твоей сигнатуре
+                        if (!delivered && dm.containsKey("sgv") && dm.containsKey("ts")) {
+                            val sgvInt   = dm.getInt("sgv")
+                            val ts       = dm.getLong("ts")
+                            val delta    = dm.getString("delta") ?: "--"
+                            val avgDelta = dm.getString("avgDelta") ?: "--"
+                            val sgvLevel = if (dm.containsKey("sgvLevel")) dm.getInt("sgvLevel") else 0
+
+                            // дефолтные линии диапазона (если телефон их не прислал)
+                            val high = 180.0
+                            val low  = 70.0
+
+                            val single = app.aaps.core.interfaces.rx.weardata.EventData.SingleBg(
+                                timeStamp = ts,
+                                sgvString = sgvInt.toString(),
+                                glucoseUnits = "-",        // при необходимости подставишь реальные единицы
+                                slopeArrow = "--",
+                                delta = delta,
+                                deltaDetailed = delta,
+                                avgDelta = avgDelta,
+                                avgDeltaDetailed = avgDelta,
+                                sgvLevel = sgvLevel.toLong(),
+                                sgv = sgvInt.toDouble(),
+                                high = high,
+                                low = low
+                            )
+                            rxBus.send(single)
+                        }
+
+                        aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged(/aaps/snapshot) OK")
+                    } catch (e: Exception) {
+                        aapsLogger.error(LTag.WEAR, "$TAG onDataChanged(/aaps/snapshot) failed", e)
                     }
-                    else -> {
-                        aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: UNHANDLED path=$path")
-                    }
+                }
+
+                else -> {
+                    aapsLogger.debug(LTag.WEAR, "$TAG onDataChanged: UNHANDLED path=$path")
                 }
             }
         }
@@ -157,6 +239,7 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
         super.onMessageReceived(messageEvent)
         aapsLogger.debug(LTag.WEAR, "$TAG 1. onMessageReceived: ${messageEvent}")
         lastInboundMs = SystemClock.elapsedRealtime()
+        escalationLevel = 0
         when (messageEvent.path) {
             rxPath     -> {
                 aapsLogger.debug(LTag.WEAR, "$TAG onMessageReceived: ${String(messageEvent.data)}")
@@ -189,13 +272,23 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
                 NotificationManagerCompat.from(this).cancel(BOLUS_PROGRESS_NOTIF_ID)
                 rxBus.send(EventWearToMobile(EventData.CancelBolus(System.currentTimeMillis())))
             }
-
             INTENT_WEAR_TO_MOBILE      -> sendMessage(rxPath, intent.extras?.getString(KEY_ACTION_DATA))
             INTENT_CANCEL_NOTIFICATION -> (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(CHANGE_NOTIF_ID)
         }
+        // важное: сервис перезапускается системой и снова поднимает foreground
+        if (intent?.action == ACTION_KEEPALIVE) {
+            withWake {
+                lastPingMs = SystemClock.elapsedRealtime()
+                rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
+            }
+            scheduleExactKeepAlive()
+            return START_STICKY
+        }
+        startForegroundService()
         return START_STICKY
     }
 
+    // === UPDATED: foreground с типами ===
     private fun startForegroundService() {
         createNotificationChannel()
         val notificationIntent = Intent(this, ConfigurationActivity::class.java)
@@ -205,9 +298,27 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
             .setContentText(getString(R.string.datalayer_notification_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSmallIcon(R.drawable.ic_icon)
+            .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
-        startForeground(FOREGROUND_NOTIF_ID, notification)
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            // типы foreground-сервиса: синхронизация + подключённое устройство (на 14+)
+            val type = if (Build.VERSION.SDK_INT >= 34) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            try {
+                startForeground(FOREGROUND_NOTIF_ID, notification, type)
+            } catch (_: Throwable) {
+                // fallback на старый вызов (на всякий случай)
+                startForeground(FOREGROUND_NOTIF_ID, notification)
+            }
+        } else {
+            startForeground(FOREGROUND_NOTIF_ID, notification)
+        }
     }
 
     private fun updateHeartRateListener() {
@@ -254,6 +365,29 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
 
     private var transcriptionNodeId: String? = null
 
+    // мягкая эскалация: обновить список узлов и принудительно пнуть ping
+    private fun softNudge(now: Long) {
+        withWake {
+            aapsLogger.debug(LTag.WEAR, "$TAG watchdog SOFT: sinceLastInbound=${now - lastInboundMs}ms; refresh capability + extra ping")
+            // переопрос доступных узлов в фоне
+            handler.post { updateTranscriptionCapability() }
+            // дополнительный пинг в сторону телефона
+            rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
+        }
+    }
+
+    // жёсткая эскалация: переинициализировать выбранный nodeId и клиентов сообщений
+    private fun hardRecover(now: Long) {
+        withWake {
+            aapsLogger.debug(LTag.WEAR, "$TAG watchdog HARD: sinceLastInbound=${now - lastInboundMs}ms; reselect node & recreate message client")
+            // сбрасываем выбранный узел, переинициализируем выбор
+            transcriptionNodeId = null
+            handler.post { updateTranscriptionCapability() }
+            // дополнительный пинг для "пробуждения" канала после реселекта
+            rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
+        }
+    }
+
     private var keepAliveStarted = false
     private val keepAliveRunnable = object : Runnable {
         override fun run() {
@@ -266,30 +400,26 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
                     wl.acquire(3000)
                     lastPingMs = now
                     rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
-                    // Removed ActionRefreshUi; add back after defining it in EventData.kt
                     aapsLogger.debug(LTag.WEAR, "$TAG keepAlive tick: ping sent; sinceLastInbound=${now - lastInboundMs} ms")
                 } finally {
                     if (wl.isHeld) wl.release()
                 }
 
-                if (now - lastInboundMs > 120_000L) {
-                    aapsLogger.debug(LTag.WEAR, "$TAG watchdog: stale >120s; refreshing capability & forcing extra ping")
-                    handler.post { updateTranscriptionCapability() }
-                    val pm2 = getSystemService(POWER_SERVICE) as PowerManager
-                    val wl2 = pm2.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:watchdog")
-                    wl2.setReferenceCounted(false)
-                    try {
-                        wl2.acquire(3000)
-                        rxBus.send(EventWearToMobile(EventData.ActionPing(System.currentTimeMillis())))
-                        // Removed ActionRefreshUi; add back after defining it
-                    } finally {
-                        if (wl2.isHeld) wl2.release()
+                val silence = now - lastInboundMs
+                when {
+                    silence > WATCHDOG_HARD_TIMEOUT_MS && escalationLevel < 2 -> {
+                        escalationLevel = 2
+                        hardRecover(now)
+                    }
+                    silence > WATCHDOG_SOFT_TIMEOUT_MS && escalationLevel < 1 -> {
+                        escalationLevel = 1
+                        softNudge(now)
                     }
                 }
             } catch (t: Throwable) {
                 aapsLogger.error(LTag.WEAR, "$TAG keepAlive error: $t")
             } finally {
-                handler.postDelayed(this, 30_000L)  // Reduced to 30s for more frequent checks
+                scheduleExactKeepAlive()
             }
         }
     }
@@ -297,8 +427,9 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
     private fun startKeepAlive() {
         if (!keepAliveStarted) {
             keepAliveStarted = true
-            handler.postDelayed(keepAliveRunnable, 1_000L)
-            aapsLogger.debug(LTag.WEAR, "$TAG keepAlive started")
+            handler.postDelayed(keepAliveRunnable, 1_000L) // первая быстрая итерация ок
+            scheduleExactKeepAlive()
+        //            aapsLogger.debug(LTag.WEAR, "$TAG keepAlive started")
         }
     }
 
@@ -309,6 +440,20 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
             lastPingMs = 0L
             aapsLogger.debug(LTag.WEAR, "$TAG keepAlive stopped")
         }
+    }
+
+    private fun scheduleExactKeepAlive() {
+        val am = getSystemService(android.app.AlarmManager::class.java)
+        val pi = android.app.PendingIntent.getService(
+            this, 1001,
+            Intent(this, DataLayerListenerServiceWear::class.java).setAction(ACTION_KEEPALIVE),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        am.setExactAndAllowWhileIdle(
+            android.app.AlarmManager.RTC_WAKEUP,
+            System.currentTimeMillis() + KEEPALIVE_PERIOD_MS,
+            pi
+        )
     }
 
     private fun ensureNodeSelected(): String? {
@@ -410,9 +555,10 @@ class DataLayerListenerServiceWear : WearableListenerService(), CapabilityClient
         const val CONFIRM_NOTIF_ID = 2
         const val FOREGROUND_NOTIF_ID = 3
         const val CHANGE_NOTIF_ID = 556677
+        const val ACTION_KEEPALIVE = "app.aaps.wear.ACTION_KEEPALIVE"
 
         const val AAPS_NOTIFY_CHANNEL_ID_OPEN_LOOP = "AndroidAPS-OpenLoop"
-        const val AAPS_NOTIFY_CHANNEL_ID_BOLUS_PROGRESS = "bolus progress vibration"
         const val AAPS_NOTIFY_CHANNEL_ID_BOLUS_PROGRESS_SILENT = "bolus progress silent"
+        const val AAPS_NOTIFY_CHANNEL_ID_BOLUS_PROGRESS = "bolus progress vibration"
     }
 }

@@ -8,9 +8,13 @@
     <uses-permission android:name="com.google.android.permission.PROVIDE_BACKGROUND" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Для Android 14+ (API 34) типы foreground-сервисов -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <uses-sdk tools:overrideLibrary="androidx.wear.tiles" />
 
@@ -127,7 +131,10 @@
 
         <service
             android:name=".comm.DataLayerListenerServiceWear"
-            android:exported="true">
+            android:exported="true"
+            android:stopWithTask="false"
+            android:foregroundServiceType="dataSync|connectedDevice">
+
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
                 <data

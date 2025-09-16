@@ -34,6 +34,8 @@ import kotlinx.coroutines.Dispatchers
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.abs
+import app.aaps.utils.WearSnapshotPublisher
+import app.aaps.core.interfaces.rx.weardata.EventData
 
 class KeepAliveWorker(
     private val context: Context,
@@ -113,6 +115,16 @@ class KeepAliveWorker(
         maintenancePlugin.deleteLogs(30)
         workerDbStatus()
         databaseCleanup()
+
+        // === Wear snapshot heartbeat: держим DataItem «тёплым», без сборки EventData ===
+        try {
+            val pub = app.aaps.utils.WearSnapshotPublisher(applicationContext)
+            // без SingleBg и Status: положим только heartbeat -> /aaps/snapshot обновится и доедет на часы
+            pub.publish(null, null)
+            aapsLogger.debug(app.aaps.core.interfaces.logging.LTag.CORE, "KeepAliveWorker: wear heartbeat published")
+        } catch (t: Throwable) {
+            aapsLogger.error(app.aaps.core.interfaces.logging.LTag.CORE, "KeepAliveWorker: publish heartbeat failed", t)
+        }
 
         return Result.success()
     }

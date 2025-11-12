@@ -1,18 +1,131 @@
 # AAPS
-* Check the wiki: https://wiki.aaps.app
-*  Everyone who’s been looping with AAPS needs to fill out the form after 3 days of looping  https://docs.google.com/forms/d/14KcMjlINPMJHVt28MDRupa4sz4DDIooI4SrW0P3HSN8/viewform?c=0&w=1
+* Документация на русском для Android APS: https://androidaps.readthedocs.io/ru/latest/
 
-[![Support Server](https://img.shields.io/discord/629952586895851530.svg?label=Discord&logo=Discord&colorB=7289da&style=for-the-badge)](https://discord.gg/4fQUWHZ4Mw)
+1️⃣ Назначение проекта
 
-[![CircleCI](https://circleci.com/gh/nightscout/AndroidAPS/tree/master.svg?style=svg)](https://circleci.com/gh/nightscout/AndroidAPS/tree/master)
-[![Crowdin](https://d322cqt584bo4o.cloudfront.net/androidaps/localized.svg)](https://translations.aaps.app/project/androidaps)
-[![Documentation Status](https://readthedocs.org/projects/androidaps/badge/?version=latest)](https://wiki.aaps.app/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/nightscout/AndroidAPS/branch/master/graph/badge.svg?token=EmklfIV6bH)](https://codecov.io/gh/nightscout/AndroidAPS)
+Форк AAPS (AndroidAPS) с дополнительными функциями для спорта и автоматизации.
+⸻
 
-DEV: 
-[![CircleCI](https://circleci.com/gh/nightscout/AndroidAPS/tree/dev.svg?style=svg)](https://circleci.com/gh/nightscout/AndroidAPS/tree/dev)
-[![codecov](https://codecov.io/gh/nightscout/AndroidAPS/branch/dev/graph/badge.svg?token=EmklfIV6bH)](https://codecov.io/gh/nightscout/AndroidAPS/tree/dev)
+2️⃣ Рабочая среда
+•	ПК: MacBook Pro
+•	ОС: macOS
+•	IDE: IntelliJ IDEA (используется вместо Android Studio)
+•	Android SDK: установлен локально, путь прописан в
+local.properties
 
-<img src="https://cdn.iconscout.com/icon/free/png-256/bitcoin-384-920569.png" srcset="https://cdn.iconscout.com/icon/free/png-512/bitcoin-384-920569.png 2x" alt="Bitcoin Icon" width="100">
+sdk.dir=/Users/alexeydedeshko/Library/Android/sdk
 
-3KawK8aQe48478s6fxJ8Ms6VTWkwjgr9f2
+	•	JDK: Java 11
+	•	Compile SDK: 34
+	•	Min SDK: 28
+	•	Target SDK: 28
+
+⸻
+
+3️⃣ Ветки разработки
+
+Используются две ветки:
+•	fixes — основная рабочая ветка (все изменения и тесты).
+•	master — стабильная ветка (только проверенные сборки).
+
+Все правки и доработки выполняются прямо в fixes.
+После проверки и успешного теста изменения пушатся в master.
+
+⸻
+
+4️⃣ Версионирование
+
+Источник версии:
+
+buildSrc/src/main/kotlin/Versions.kt
+
+Пример:
+
+object Versions {
+const val appVersion = "3.3.1-AIMI_whatchSport_tg_alexemplify_v2-2025.11.12"
+const val versionCode = 1503
+}
+
+Перед каждой новой сборкой необходимо увеличить versionCode,
+чтобы Android видел APK как обновление.
+
+⸻
+
+5️⃣ Тип сборки
+
+Используется debug-сборка:
+•	для телефона — app/build/outputs/apk/full/debug/app-full-debug.apk
+•	для часов — wear/build/outputs/apk/full/debug/wear-full-debug.apk
+
+Debug-сборка позволяет быстро тестировать изменения,
+устанавливать APK без подписи и использовать adb-отладку.
+
+⸻
+
+6️⃣ Сборка проекта
+•	Выполняется через IntelliJ IDEA или командой:
+
+./gradlew :app:assembleFullDebug
+./gradlew :wear:assembleFullDebug
+
+
+	•	Результирующие файлы появляются в каталогах app/.../debug/ и wear/.../debug/.
+
+⸻
+
+7️⃣ Установка на устройства
+1.	Подключить телефон и часы по USB.
+2.	Если устанавливаешь на то же устройство, где проект был собран ранее —
+просто накатывай поверх (adb install -r -t -g). Удалять не нужно.
+3.	Если устанавливаешь на другое устройство, требуется либо:
+•	подписанная версия через keystore,
+•	либо удалить предыдущую установку перед новой.
+4.	Команды установки:
+
+adb install -r -t -g app-full-debug.apk
+adb install -r -t -g wear-full-debug.apk
+
+
+	5.	После установки выдать все разрешения (уведомления, фон, сенсоры).
+
+⸻
+
+8️⃣ Проверка после установки
+•	Приложение успешно запускается и показывает статус Closed Loop = ON.
+•	В разделе Constraints → VersionChecker — статус “OK”.
+•	Часы и телефон синхронизируются корректно.
+
+⸻
+
+9️⃣ Типовые ошибки
+•	INSTALL_FAILED_UPDATE_INCOMPATIBLE — удалить старую версию при смене устройства.
+•	SDK location not found — проверить local.properties.
+
+⸻
+
+🔟 Релиз и фиксация изменений
+•	Проверить сборку на телефоне и часах.
+•	При успехе:
+    1.	Коммит в fixes
+    2.	Пуш в GitHub
+    3.	Слияние в master
+•	В CHANGELOG кратко записать, что изменилось.
+
+⸻
+
+11️⃣ Безопасность
+•	Не коммитить local.properties, ключи и личные данные.
+•	Все конфиденциальные файлы — только локально.
+
+⸻
+
+12️⃣ Контакты
+
+Разработчик: Alexey Dedeshko
+Telegram: @alexemplify￼
+Среда: IntelliJ IDEA на macOS
+Репозиторий: GitHub (fixes / master)
+
+⸻
+
+Хочешь, я превращу это сразу в отформатированный Markdown-файл (README.md), чтобы просто вставить его в проект?

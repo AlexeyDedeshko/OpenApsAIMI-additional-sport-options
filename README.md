@@ -125,7 +125,3 @@ adb install -r -t -g wear-full-debug.apk
 Telegram: @alexemplify￼
 Среда: IntelliJ IDEA на macOS
 Репозиторий: GitHub (fixes / master)
-
-⸻
-
-Хочешь, я превращу это сразу в отформатированный Markdown-файл (README.md), чтобы просто вставить его в проект?

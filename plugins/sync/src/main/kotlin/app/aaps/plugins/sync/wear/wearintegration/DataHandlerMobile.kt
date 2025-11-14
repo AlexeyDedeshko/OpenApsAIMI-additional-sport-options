@@ -1425,43 +1425,85 @@ class DataHandlerMobile @Inject constructor(
         doBolus(0.0, carbs, carbsTime, duration, null, notes)
     }
 
+    // Alexey: changed to make profile switch for Exercise mode from watch
     private fun doExerciseMode(command: EventData.ActionExerciseModeConfirmed) {
         Log.d(TAG, "doExerciseMode, command = $command")
-        if (command.duration != 0) {
-            val target = preferences.get(UnitDoubleKey.OverviewActivityTarget)
-            val units = profileFunction.getUnits()
 
-            disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
-                temporaryTarget = TT(
-                    timestamp = System.currentTimeMillis(),
-                    duration = TimeUnit.MINUTES.toMillis(command.duration.toLong()),
-                    reason = TT.Reason.ACTIVITY,//.WEAR,
-                    lowTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits()),
-                    highTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits())
-                ),
-                action = Action.TT,
-                source = Sources.Wear,
-                note = null,
-
-                listValues = listOf(
-                    // ValueWithUnit.Timestamp(eventTime).takeIf { eventTimeChanged },
-                    ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
-                    ValueWithUnit.fromGlucoseUnit(target, units),
-                    ValueWithUnit.Minute(command.duration)
-                )
-
-            ).subscribe()
-
-        } else {
+        // 1) duration == 0 → только отменяем TT, профиль не трогаем
+        if (command.duration == 0) {
             disposable += persistenceLayer.cancelCurrentTemporaryTargetIfAny(
                 timestamp = dateUtil.now(),
                 action = Action.CANCEL_TT,
                 source = Sources.Wear,
                 note = null,
                 listValues = listOf(ValueWithUnit.TETTReason(TT.Reason.WEAR))
-
             ).subscribe()
+            return
         }
+
+        // 2) Есть длительность → ставим и профиль, и TT (как CareDialog)
+
+        val profileStore = activePlugin.activeProfileSource.profile
+        val profile = profileFunction.getProfile()
+        val profileName =
+            profileFunction.getOriginalProfileName() ?: profileFunction.getProfileName()
+
+        if (profileStore == null || profile == null) {
+            sendError(rh.gs(R.string.no_active_profile))
+            return
+        }
+
+        val percentage = command.percentage
+        val durationMinutes = command.duration           // с часов приходит в минутах
+        val timeShiftMinutes = command.timeShift
+        val timestamp = System.currentTimeMillis()
+
+        // ProfileSwitch через createProfileSwitch2
+        val profileSwitchCreated = profileFunction.createProfileSwitch2(
+            profileStore = profileStore,
+            profileName = profileName,
+            durationInMinutes = durationMinutes,
+            percentage = percentage,
+            timeShiftInMinutes = timeShiftMinutes,
+            timestamp = timestamp,
+            action = Action.PROFILE_SWITCH,
+            source = Sources.Wear,
+            note = null,    // чтобы не тянуть новые строки ресурсов
+            listValues = listOf(
+                ValueWithUnit.Timestamp(timestamp),
+                ValueWithUnit.SimpleString(profileName),
+                ValueWithUnit.Percent(percentage),
+                ValueWithUnit.Minute(timeShiftMinutes).takeIf { timeShiftMinutes != 0 },
+                ValueWithUnit.Minute(durationMinutes).takeIf { durationMinutes != 0 }
+            )
+        )
+
+        if (!profileSwitchCreated) {
+            sendError(rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch))
+            return
+        }
+
+        // 3) Temporary Target ACTIVITY – как и было, только используем тот же timestamp
+        val target = preferences.get(UnitDoubleKey.OverviewActivityTarget)
+        val units = profileFunction.getUnits()
+
+        disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
+            temporaryTarget = TT(
+                timestamp = timestamp,
+                duration = TimeUnit.MINUTES.toMillis(durationMinutes.toLong()),
+                reason = TT.Reason.ACTIVITY,
+                lowTarget = profileUtil.convertToMgdl(target, units),
+                highTarget = profileUtil.convertToMgdl(target, units)
+            ),
+            action = Action.TT,
+            source = Sources.Wear,
+            note = null,
+            listValues = listOf(
+                ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
+                ValueWithUnit.fromGlucoseUnit(target, units),
+                ValueWithUnit.Minute(durationMinutes)
+            )
+        ).subscribe()
     }
 
     private fun doProfileSwitch(command: EventData.ActionProfileSwitchConfirmed) {

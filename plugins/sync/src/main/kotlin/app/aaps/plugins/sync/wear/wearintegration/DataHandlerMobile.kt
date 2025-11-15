@@ -1,5 +1,22 @@
 package app.aaps.plugins.sync.wear.wearintegration
 
+
+// Команды для установки и логирования
+// cd ~/OpenApsAIMI-additional-sport-options && \
+// ./gradlew :wear:assembleFullDebug && \
+// adb -s 38151RTJWW5MSC install -r wear/build/outputs/apk/full/debug/wear-full-debug.apk
+//
+// Часы
+// логи adb -s 38151RTJWW5MSC logcat -s WEAR_FACE | grep carbsReq
+//
+// cd ~/OpenApsAIMI-additional-sport-options && \
+// ./gradlew :app:assembleFullDebug && \
+// adb -s RZCX22H6J9P install -r app/build/outputs/apk/full/debug/app-full-debug.apk
+
+// Телефон
+// логи adb -s RZCX22H6J9P logcat | grep carbsReq
+
+
 import android.app.NotificationManager
 import android.content.Context
 import android.util.Log
@@ -1055,6 +1072,44 @@ class DataHandlerMobile @Inject constructor(
         }
     }
 
+    // Используем ту же логику, что и Bolus Wizard,
+    // чтобы получить "Missing __ g"
+    private fun computeWizardCarbsReq(profile: Profile): Int {
+        // BG
+        val bgReading = iobCobCalculator.ads.actualBg() ?: return 0
+
+        // COB
+        val cobInfo = iobCobCalculator.getCobInfo("WearStatusWizard")
+        val displayCob = cobInfo.displayCob ?: return 0
+
+        // Temp target
+        val tempTarget = persistenceLayer.getTemporaryTargetActiveAt(dateUtil.now())
+        val profileName = profileFunction.getProfileName()
+
+        val wizard = BolusWizard(injector).doCalc(
+            profile = profile,
+            profileName = profileName,
+            tempTarget = tempTarget,
+            carbs = 0, // ручных углей нет
+            cob = displayCob,
+            bg = bgReading.valueToUnits(profileFunction.getUnits()),
+            correction = 0.0,
+            percentageCorrection = 100,
+            useBg = preferences.get(BooleanKey.WearWizardBg),
+            useCob = preferences.get(BooleanKey.WearWizardCob),
+            includeBolusIOB = preferences.get(BooleanKey.WearWizardIob),
+            includeBasalIOB = preferences.get(BooleanKey.WearWizardIob),
+            useSuperBolus = false,
+            useTT = preferences.get(BooleanKey.WearWizardTt),
+            useTrend = preferences.get(BooleanKey.WearWizardTrend),
+            useAlarm = false
+        )
+
+        val carbsEq = wizard.carbsEquivalent
+        aapsLogger.debug(LTag.WEAR, "computeWizardCarbsReq: carbsEq=$carbsEq")
+        return if (carbsEq > 0.0) carbsEq.toInt() else 0
+    }
+
     private fun sendStatus(caller: String) {
         val profile = profileFunction.getProfile()
         var status = rh.gs(app.aaps.core.ui.R.string.noprofile)
@@ -1063,6 +1118,8 @@ class DataHandlerMobile @Inject constructor(
         var cobString = ""
         var currentBasal = ""
         var bgiString = ""
+        var carbsReq = 0
+
         if (config.appInitialized && profile != null) {
             val bolusIob = iobCobCalculator.calculateIobFromBolus().round()
             val basalIob = iobCobCalculator.calculateIobFromTempBasalsIncludingConvertedExtended().round()
@@ -1070,12 +1127,21 @@ class DataHandlerMobile @Inject constructor(
             iobDetail = "(${decimalFormatter.to2Decimal(bolusIob.iob)}|${decimalFormatter.to2Decimal(basalIob.basaliob)})"
             cobString = iobCobCalculator.getCobInfo("WatcherUpdaterService").generateCOBString(decimalFormatter)
             currentBasal =
-                processedTbrEbData.getTempBasalIncludingConvertedExtended(System.currentTimeMillis())?.toStringShort(rh) ?: rh.gs(app.aaps.core.ui.R.string.pump_base_basal_rate, profile.getBasal())
+                processedTbrEbData.getTempBasalIncludingConvertedExtended(System.currentTimeMillis())?.toStringShort(rh)
+                    ?: rh.gs(app.aaps.core.ui.R.string.pump_base_basal_rate, profile.getBasal())
 
-            //bgi
-            val bgi = -(bolusIob.activity + basalIob.activity) * 5 * profileUtil.fromMgdlToUnits(profile.getIsfMgdl("DataHandlerMobile $caller"))
-            bgiString = "" + (if (bgi >= 0) "+" else "") + decimalFormatter.to1Decimal(bgi)
+            val bgi = -(bolusIob.activity + basalIob.activity) * 5 *
+                profileUtil.fromMgdlToUnits(profile.getIsfMgdl("DataHandlerMobile $caller"))
+            bgiString = (if (bgi >= 0) "+" else "") + decimalFormatter.to1Decimal(bgi)
             status = generateStatusString(profile)
+
+            // 🔹 вместо APS-carbs берём значение из Bolus Wizard (Missing __ g)
+            carbsReq = computeWizardCarbsReq(profile)
+
+            Log.d(
+                TAG,
+                "sendStatus: caller=$caller, wizardCarbsReq=$carbsReq"
+            )
         }
 
         //batteries
@@ -1085,6 +1151,11 @@ class DataHandlerMobile @Inject constructor(
         val openApsStatus =
             if (config.APS) loop.lastRun?.let { if (it.lastTBREnact != 0L) it.lastTBREnact else -1 } ?: -1
             else processedDeviceStatusData.openApsTimestamp
+
+        aapsLogger.debug(
+            LTag.WEAR,
+            "sendStatus: carbsReq=$carbsReq, phoneBattery=$phoneBattery"
+        )
 
         rxBus.send(
             EventMobileToWear(
@@ -1098,7 +1169,8 @@ class DataHandlerMobile @Inject constructor(
                     rigBattery = rigBattery,
                     openApsStatus = openApsStatus,
                     bgi = bgiString,
-                    batteryLevel = if (phoneBattery >= 30) 1 else 0
+                    batteryLevel = if (phoneBattery >= 30) 1 else 0,
+                    carbsReq = carbsReq
                 )
             )
         )
@@ -1425,43 +1497,85 @@ class DataHandlerMobile @Inject constructor(
         doBolus(0.0, carbs, carbsTime, duration, null, notes)
     }
 
+    // Alexey: changed to make profile switch for Exercise mode from watch
     private fun doExerciseMode(command: EventData.ActionExerciseModeConfirmed) {
         Log.d(TAG, "doExerciseMode, command = $command")
-        if (command.duration != 0) {
-            val target = preferences.get(UnitDoubleKey.OverviewActivityTarget)
-            val units = profileFunction.getUnits()
 
-            disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
-                temporaryTarget = TT(
-                    timestamp = System.currentTimeMillis(),
-                    duration = TimeUnit.MINUTES.toMillis(command.duration.toLong()),
-                    reason = TT.Reason.ACTIVITY,//.WEAR,
-                    lowTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits()),
-                    highTarget = profileUtil.convertToMgdl(target, profileFunction.getUnits())
-                ),
-                action = Action.TT,
-                source = Sources.Wear,
-                note = null,
-
-                listValues = listOf(
-                    // ValueWithUnit.Timestamp(eventTime).takeIf { eventTimeChanged },
-                    ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
-                    ValueWithUnit.fromGlucoseUnit(target, units),
-                    ValueWithUnit.Minute(command.duration)
-                )
-
-            ).subscribe()
-
-        } else {
+        // 1) duration == 0 → только отменяем TT, профиль не трогаем
+        if (command.duration == 0) {
             disposable += persistenceLayer.cancelCurrentTemporaryTargetIfAny(
                 timestamp = dateUtil.now(),
                 action = Action.CANCEL_TT,
                 source = Sources.Wear,
                 note = null,
                 listValues = listOf(ValueWithUnit.TETTReason(TT.Reason.WEAR))
-
             ).subscribe()
+            return
         }
+
+        // 2) Есть длительность → ставим и профиль, и TT (как CareDialog)
+
+        val profileStore = activePlugin.activeProfileSource.profile
+        val profile = profileFunction.getProfile()
+        val profileName =
+            profileFunction.getOriginalProfileName() ?: profileFunction.getProfileName()
+
+        if (profileStore == null || profile == null) {
+            sendError(rh.gs(R.string.no_active_profile))
+            return
+        }
+
+        val percentage = command.percentage
+        val durationMinutes = command.duration           // с часов приходит в минутах
+        val timeShiftMinutes = command.timeShift
+        val timestamp = System.currentTimeMillis()
+
+        // ProfileSwitch через createProfileSwitch2
+        val profileSwitchCreated = profileFunction.createProfileSwitch2(
+            profileStore = profileStore,
+            profileName = profileName,
+            durationInMinutes = durationMinutes,
+            percentage = percentage,
+            timeShiftInMinutes = timeShiftMinutes,
+            timestamp = timestamp,
+            action = Action.PROFILE_SWITCH,
+            source = Sources.Wear,
+            note = null,    // чтобы не тянуть новые строки ресурсов
+            listValues = listOf(
+                ValueWithUnit.Timestamp(timestamp),
+                ValueWithUnit.SimpleString(profileName),
+                ValueWithUnit.Percent(percentage),
+                ValueWithUnit.Minute(timeShiftMinutes).takeIf { timeShiftMinutes != 0 },
+                ValueWithUnit.Minute(durationMinutes).takeIf { durationMinutes != 0 }
+            )
+        )
+
+        if (!profileSwitchCreated) {
+            sendError(rh.gs(app.aaps.core.ui.R.string.careportal_profileswitch))
+            return
+        }
+
+        // 3) Temporary Target ACTIVITY – как и было, только используем тот же timestamp
+        val target = preferences.get(UnitDoubleKey.OverviewActivityTarget)
+        val units = profileFunction.getUnits()
+
+        disposable += persistenceLayer.insertAndCancelCurrentTemporaryTarget(
+            temporaryTarget = TT(
+                timestamp = timestamp,
+                duration = TimeUnit.MINUTES.toMillis(durationMinutes.toLong()),
+                reason = TT.Reason.ACTIVITY,
+                lowTarget = profileUtil.convertToMgdl(target, units),
+                highTarget = profileUtil.convertToMgdl(target, units)
+            ),
+            action = Action.TT,
+            source = Sources.Wear,
+            note = null,
+            listValues = listOf(
+                ValueWithUnit.TETTReason(TT.Reason.ACTIVITY),
+                ValueWithUnit.fromGlucoseUnit(target, units),
+                ValueWithUnit.Minute(durationMinutes)
+            )
+        ).subscribe()
     }
 
     private fun doProfileSwitch(command: EventData.ActionProfileSwitchConfirmed) {

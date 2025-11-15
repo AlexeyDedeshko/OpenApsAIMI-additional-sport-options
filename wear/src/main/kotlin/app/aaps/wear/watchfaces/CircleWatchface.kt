@@ -104,16 +104,74 @@ class CircleWatchface : WatchFace() {
     private lateinit var rect: RectF
     private lateinit var rectDelete: RectF
 
-    companion object {
-        const val PADDING = 20f
-        const val CIRCLE_WIDTH = 10f
-        const val BIG_HAND_WIDTH = 16
-        const val SMALL_HAND_WIDTH = 8
-        const val NEAR = 2
-        const val ALWAYS_HIGHLIGHT_SMALL = false
-        const val fraction = .5
-    }
+    // 🔹 Область тап-кнопки Exercise Mode
+    private var exerciseRect: RectF? = null
+    private val tmpTextBounds = Rect()
 
+    // Конфиг для быстрой настройки интерфейса — ВСЕ размеры/отступы в одном месте
+    private data class UiConfig(
+
+        // ---- ТЕКСТОВЫЕ РАЗМЕРЫ ----
+        // BG (крупное число) — два варианта: когда включен флаг "большие цифры" и когда нет
+        val bigTextSpNormal: Float = 45f,
+        val bigTextSpLarge: Float = 72f,
+
+        // Строка Delta/AvgDelta
+        val midTextSpNormal: Float = 18f,
+        val midTextSpLarge: Float = 28f,
+
+        // Мелкий текст (минуты, статус и т.п.)
+        val smallTextSp: Float = 16f,
+
+        // Отладочный текст внизу
+        val debugTextSp: Float = 12f,
+
+        // ---- ВЕРТИКАЛЬНЫЕ ОТСТУПЫ МЕЖДУ СТРОКАМИ ----
+        // Насколько BG поднят относительно геометрического центра экрана
+        val bgOffsetFromCenterSp: Float = 30f,   // BG рисуем на (centerY - bgOffset)
+
+        // Расстояние от BG до строки Delta/AvgDelta
+        val deltaOffsetSp: Float = 28f,
+
+        // От Delta до "минут назад"
+        val agoOffsetSp: Float = 22f,
+
+        // От "минут назад" до строки статуса
+        val statusOffsetSp: Float = 22f,
+
+        // От строки статуса до EX-кнопки
+        val exOffsetSp: Float = 22f,
+
+        // ---- Exercise-кнопка ----
+        val exTextSizeSp: Float = 12f,   // размер текста EX-кнопки
+        val exExtraPadSp: Float = 8f,    // "обводка" вокруг текста (hit-area)
+
+        // ---- Отладочная сетка ----
+        val showDevGrid: Boolean = false,
+
+        // 🔹 НОВОЕ: показывать ли отладочную строку "lastUpdate..."
+        val showDebugInfo: Boolean = false
+
+
+    )
+
+    // Один глобальный экземпляр, который мы будем менять в коде при настройке UI
+    private var uiConfig = UiConfig()
+
+    companion object {
+        const val PADDING = 20f          // отступ от краёв экрана
+        const val CIRCLE_WIDTH = 10f     // толщина основного кольца
+        const val BIG_HAND_WIDTH = 16    // ширина "часовой" вырезки
+        const val SMALL_HAND_WIDTH = 8   // ширина "минутной" вырезки
+        const val NEAR = 2               // зона "перекрытия" стрелок
+        const val ALWAYS_HIGHLIGHT_SMALL = false
+        const val fraction = .5          // используется в darken()
+
+        // 🔹 Предустановки Exercise Mode
+        const val EXERCISE_PERCENT = 80
+        const val EXERCISE_DURATION_MIN = 30
+        const val EXERCISE_TIMESHIFT_MIN = 0
+    }
     // Углы/цвет
     private var angleBig = 0f
     private var angleSmall = 0f
@@ -252,7 +310,7 @@ class CircleWatchface : WatchFace() {
             .subscribe {
                 latestStatus = it
                 tStatusMs = SystemClock.elapsedRealtime()
-                logd("Rx Status at ${tStatusMs}ms")
+                logd("Rx Status at ${tStatusMs}ms, carbsReq=${it.carbsReq}")
                 redrawWithWakeLock("Status")
             }
 
@@ -324,6 +382,20 @@ class CircleWatchface : WatchFace() {
         invalidate()
     }
 
+    // 🔹 Отправка команды Exercise Mode на телефон
+    private fun triggerExerciseMode() {
+        logd("ExerciseMode button tapped → send ActionExerciseMode")
+        rxBus.send(
+            EventWearToMobile(
+                EventData.ActionExerciseMode(
+                    percentage = EXERCISE_PERCENT,
+                    duration = EXERCISE_DURATION_MIN,
+                    timeShift = EXERCISE_TIMESHIFT_MIN
+                )
+            )
+        )
+    }
+
     // ——— Геометрия/шрифты
     private fun initGeometryAndScales() {
         val display = (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay
@@ -342,21 +414,24 @@ class CircleWatchface : WatchFace() {
         addToWatchSet()
     }
 
+    // Инициализация размеров шрифтов для всех текстовых элементов циферблата
     private fun initTextSizes() {
-        val big = if (sp.getBoolean(R.string.key_show_big_numbers, false)) 72f else 56f
-        val mid = if (sp.getBoolean(R.string.key_show_big_numbers, false)) 28f else 22f
-        val small = 18f
+        val bigNumbers = sp.getBoolean(R.string.key_show_big_numbers, false)
+
+        val big = if (bigNumbers) uiConfig.bigTextSpLarge else uiConfig.bigTextSpNormal
+        val mid = if (bigNumbers) uiConfig.midTextSpLarge else uiConfig.midTextSpNormal
+        val small = uiConfig.smallTextSp
 
         textPaintLarge.textSize = spToPx(big)
-        textPaintMid.textSize = spToPx(mid)
+        textPaintMid.textSize   = spToPx(mid)
         textPaintSmall.textSize = spToPx(small)
-        debugPaint.textSize = spToPx(12f)
+        debugPaint.textSize     = spToPx(uiConfig.debugTextSp)
 
         val txtCol = textColor
         textPaintLarge.color = txtCol
-        textPaintMid.color = txtCol
+        textPaintMid.color   = txtCol
         textPaintSmall.color = txtCol
-        debugPaint.color = txtCol
+        debugPaint.color     = txtCol
     }
 
     private fun spToPx(sp: Float): Float =
@@ -420,7 +495,6 @@ class CircleWatchface : WatchFace() {
         }
     }
 
-    // ——— Рисуем тексты
     private fun drawTexts(canvas: Canvas) {
         val cx = displaySize.x / 2f
         val cy = displaySize.y / 2f
@@ -428,8 +502,16 @@ class CircleWatchface : WatchFace() {
         val sbg = curSingleBg()
         val status = curStatus()
 
-        canvas.drawText(sbg.sgvString, cx, cy - spToPx(8f), textPaintLarge)
+        // 🔍 ЛОГ: смотрим, что реально приходит на часы
+        logd("drawTexts: status.carbsReq=${status.carbsReq}")
 
+        // 1) BG почти по центру
+        val bgY = cy - spToPx(uiConfig.bgOffsetFromCenterSp)
+        canvas.drawText(sbg.sgvString, cx, bgY, textPaintLarge)
+
+        var currentY = bgY
+
+        // 2) Delta / AvgDelta
         val deltaLine = buildString {
             if (sp.getBoolean(R.string.key_show_delta, true)) {
                 append(if (sp.getBoolean(R.string.key_show_detailed_delta, false)) sbg.deltaDetailed else sbg.delta)
@@ -439,25 +521,82 @@ class CircleWatchface : WatchFace() {
                 }
             }
         }
-        if (deltaLine.isNotEmpty()) canvas.drawText(deltaLine, cx, cy + spToPx(24f), textPaintMid)
-
-        if (sp.getBoolean(R.string.key_show_ago, true)) {
-            canvas.drawText(minutesFrom(sbg.timeStamp), cx, cy + spToPx(48f), textPaintSmall)
+        if (deltaLine.isNotEmpty()) {
+            currentY += spToPx(uiConfig.deltaOffsetSp)
+            canvas.drawText(deltaLine, cx, currentY, textPaintMid)
         }
 
+        // 3) "минут назад" + требуемые углеводы
+        if (sp.getBoolean(R.string.key_show_ago, true)) {
+            currentY += spToPx(uiConfig.agoOffsetSp)
+
+            val agoText = minutesFrom(sbg.timeStamp)
+            val carbsReq = status.carbsReq    // или status?.carbsReq ?: 0, если status может быть null
+
+            val line = if (carbsReq > 0) {
+                "$agoText   Need ${carbsReq} g"
+                // если хочешь коротко: "$agoText   ${carbsReq} g"
+            } else {
+                agoText
+            }
+
+            canvas.drawText(line, cx, currentY, textPaintSmall)
+        }
+
+        // 4) Строка статуса
         if (sp.getBoolean(R.string.key_show_external_status, true)) {
+            currentY += spToPx(uiConfig.statusOffsetSp)
             val detailedIob = sp.getBoolean(R.string.key_show_detailed_iob, false)
             val showBgi = sp.getBoolean(R.string.key_show_bgi, false)
             val iobStr = if (detailedIob) "${status.iobSum} ${status.iobDetail}" else status.iobSum + getString(R.string.units_short)
             val statLine = if (showBgi) "${status.externalStatus}  $iobStr  ${status.bgi}" else "${status.externalStatus}  $iobStr"
-            canvas.drawText(statLine, cx, cy + spToPx(68f), textPaintSmall)
+            canvas.drawText(statLine, cx, currentY, textPaintSmall)
         }
 
-        val sinceInbound = (SystemClock.elapsedRealtime() - lastInboundElapsed) / 1000
-        canvas.drawText(
-            "lastUpdate: +${sinceInbound}s  Δinv:${lastUpdateToInvalidateMs}ms",
-            PADDING, displaySize.y - PADDING, debugPaint
+        // 5) EX-кнопка
+        val oldSmallSize = textPaintSmall.textSize
+        textPaintSmall.textSize = spToPx(uiConfig.exTextSizeSp)
+
+        currentY += spToPx(uiConfig.exOffsetSp)
+        val exText = "EX ${EXERCISE_PERCENT}% / ${EXERCISE_DURATION_MIN}m"
+        val exY = currentY
+        canvas.drawText(exText, cx, exY, textPaintSmall)
+
+        textPaintSmall.getTextBounds(exText, 0, exText.length, tmpTextBounds)
+        val halfWidth = tmpTextBounds.width() / 2f
+        val extraPad = spToPx(uiConfig.exExtraPadSp)
+
+        exerciseRect = RectF(
+            cx - halfWidth - extraPad,
+            exY + tmpTextBounds.top - extraPad,
+            cx + halfWidth + extraPad,
+            exY + tmpTextBounds.bottom + extraPad
         )
+
+        textPaintSmall.textSize = oldSmallSize
+
+        if (uiConfig.showDevGrid) {
+            drawDevGrid(canvas, cx, cy)
+        }
+
+        if (uiConfig.showDebugInfo) {
+            val sinceInbound = (SystemClock.elapsedRealtime() - lastInboundElapsed) / 1000
+            canvas.drawText(
+                "lastUpdate: +${sinceInbound}s  Δinv:${lastUpdateToInvalidateMs}ms",
+                PADDING, displaySize.y - PADDING, debugPaint
+            )
+        }
+    }
+
+    private fun drawDevGrid(canvas: Canvas, cx: Float, cy: Float) {
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.DKGRAY
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+        }
+        // крест по центру
+        canvas.drawLine(cx, 0f, cx, displaySize.y.toFloat(), gridPaint)
+        canvas.drawLine(0f, cy, displaySize.x.toFloat(), cy, gridPaint)
     }
 
     private fun minutesFrom(ts: Long): String =
@@ -563,6 +702,16 @@ class CircleWatchface : WatchFace() {
     private var sgvTapTime: Long = 0
     override fun onTapCommand(tapType: Int, x: Int, y: Int, eventTime: Long) {
         if (tapType == TAP_TYPE_TAP) {
+
+            // 🔹 1) Сначала проверяем, попали ли в область Exercise Mode
+            exerciseRect?.let { rect ->
+                if (rect.contains(x.toFloat(), y.toFloat())) {
+                    triggerExerciseMode()
+                    return    // не идём дальше к логике двойного тапа
+                }
+            }
+
+            // 🔹 2) Старая логика: двойной тап по центру → главное меню
             val cx = displaySize.x / 2f
             val cy = displaySize.y / 2f
             val dx = x - cx

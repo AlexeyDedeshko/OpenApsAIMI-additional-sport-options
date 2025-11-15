@@ -170,7 +170,7 @@ sealed class EventData : Event() {
     data class ActionWizardConfirmed(val timeStamp: Long) : EventData()
 
     @Serializable
-    data class ActionExerciseModeConfirmed(val percentage: Int = 0, val duration: Int = 0, val timeshift: Int = 0) : EventData()
+    data class ActionExerciseModeConfirmed(val percentage: Int = 0, val duration: Int = 0, val timeShift: Int = 0) : EventData()
 
     @Serializable
     data class ActionTempTargetConfirmed(val isMgdl: Boolean = true, val duration: Int = 0, val low: Double = 0.0, val high: Double = 0.0) : EventData()
@@ -297,7 +297,8 @@ sealed class EventData : Event() {
         val rigBattery: String,
         val openApsStatus: Long,
         val bgi: String,
-        val batteryLevel: Int
+        val batteryLevel: Int,
+        val carbsReq: Int = 0      // 🔹 добавляем на часы carbsReq
     ) : EventData()
 
     @Serializable

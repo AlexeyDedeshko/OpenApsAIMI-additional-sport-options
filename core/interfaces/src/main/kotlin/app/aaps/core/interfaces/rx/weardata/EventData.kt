@@ -297,7 +297,8 @@ sealed class EventData : Event() {
         val rigBattery: String,
         val openApsStatus: Long,
         val bgi: String,
-        val batteryLevel: Int
+        val batteryLevel: Int,
+        val carbsReq: Int = 0      // 🔹 добавляем на часы carbsReq
     ) : EventData()
 
     @Serializable

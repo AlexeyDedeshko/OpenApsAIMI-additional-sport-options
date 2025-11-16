@@ -94,6 +94,8 @@ class CircleWatchface : WatchFace() {
     private var latestSingleBg: EventData.SingleBg? = null
     private var latestStatus: EventData.Status? = null
     private var latestGraph: EventData.GraphData? = null
+    // состояние Exercise Mode, которое прислал телефон
+    private var isExerciseActive: Boolean = false
 
     private fun curSingleBg(): EventData.SingleBg = latestSingleBg ?: rawData.singleBg
     private fun curStatus(): EventData.Status = latestStatus ?: rawData.status
@@ -310,7 +312,8 @@ class CircleWatchface : WatchFace() {
             .subscribe {
                 latestStatus = it
                 tStatusMs = SystemClock.elapsedRealtime()
-                logd("Rx Status at ${tStatusMs}ms, carbsReq=${it.carbsReq}")
+                isExerciseActive = it.exerciseModeActive
+                logd("Rx Status at ${tStatusMs}ms, carbsReq=${it.carbsReq}, exerciseActive=$isExerciseActive")
                 redrawWithWakeLock("Status")
             }
 
@@ -534,7 +537,7 @@ class CircleWatchface : WatchFace() {
             val carbsReq = status.carbsReq    // или status?.carbsReq ?: 0, если status может быть null
 
             val line = if (carbsReq > 0) {
-                "$agoText   Need ${carbsReq} g"
+                "$agoText   Сьеш ${carbsReq} g"
                 // если хочешь коротко: "$agoText   ${carbsReq} g"
             } else {
                 agoText
@@ -555,13 +558,14 @@ class CircleWatchface : WatchFace() {
 
         // 5) EX-кнопка
         val oldSmallSize = textPaintSmall.textSize
+        val oldColor = textPaintSmall.color
         textPaintSmall.textSize = spToPx(uiConfig.exTextSizeSp)
 
         currentY += spToPx(uiConfig.exOffsetSp)
-        val exText = "EX ${EXERCISE_PERCENT}% / ${EXERCISE_DURATION_MIN}m"
+        val exText = "Вкл нагр ${EXERCISE_PERCENT}% / ${EXERCISE_DURATION_MIN}m"
         val exY = currentY
-        canvas.drawText(exText, cx, exY, textPaintSmall)
 
+        // считаем bounds для hit-area и фона
         textPaintSmall.getTextBounds(exText, 0, exText.length, tmpTextBounds)
         val halfWidth = tmpTextBounds.width() / 2f
         val extraPad = spToPx(uiConfig.exExtraPadSp)
@@ -573,7 +577,28 @@ class CircleWatchface : WatchFace() {
             exY + tmpTextBounds.bottom + extraPad
         )
 
+        // если Exercise Mode активен — рисуем подсветку + меняем цвет текста
+        if (isExerciseActive) {
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                // мягкий зелёный полупрозрачный фон
+                color = if (sp.getBoolean(R.string.key_dark, true))
+                    Color.argb(120, 0, 200, 0)
+                else
+                    Color.argb(160, 0, 180, 0)
+            }
+            canvas.drawRoundRect(exerciseRect!!, spToPx(6f), spToPx(6f), bgPaint)
+
+            // текст чуть ярче
+            textPaintSmall.color = Color.WHITE
+        }
+
+        // сам текст
+        canvas.drawText(exText, cx, exY, textPaintSmall)
+
+        // восстанавливаем размер/цвет
         textPaintSmall.textSize = oldSmallSize
+        textPaintSmall.color = oldColor
 
         if (uiConfig.showDevGrid) {
             drawDevGrid(canvas, cx, cy)

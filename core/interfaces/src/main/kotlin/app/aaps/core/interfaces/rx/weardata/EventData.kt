@@ -298,7 +298,8 @@ sealed class EventData : Event() {
         val openApsStatus: Long,
         val bgi: String,
         val batteryLevel: Int,
-        val carbsReq: Int = 0      // 🔹 добавляем на часы carbsReq
+        val carbsReq: Int = 0,      // 🔹 добавляем на часы carbsReq
+        val exerciseModeActive: Boolean = false   // 👈выделяем exercise mode пока активен
     ) : EventData()
 
     @Serializable

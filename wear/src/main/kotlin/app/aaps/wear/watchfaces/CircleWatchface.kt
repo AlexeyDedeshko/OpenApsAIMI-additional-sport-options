@@ -161,8 +161,8 @@ class CircleWatchface : WatchFace() {
     private var uiConfig = UiConfig()
 
     companion object {
-        const val PADDING = 20f          // отступ от краёв экрана
-        const val CIRCLE_WIDTH = 10f     // толщина основного кольца
+        const val PADDING = 1f          // отступ от краёв экрана
+        const val CIRCLE_WIDTH = 8f     // толщина основного кольца
         const val BIG_HAND_WIDTH = 16    // ширина "часовой" вырезки
         const val SMALL_HAND_WIDTH = 8   // ширина "минутной" вырезки
         const val NEAR = 2               // зона "перекрытия" стрелок

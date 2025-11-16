@@ -1110,6 +1110,12 @@ class DataHandlerMobile @Inject constructor(
         return if (carbsEq > 0.0) carbsEq.toInt() else 0
     }
 
+    // активность Exercise mode dвыделение - true, если сейчас активен Exercise Mode (TT c reason = ACTIVITY)
+    private fun isExerciseModeActive(): Boolean {
+        val tt = persistenceLayer.getTemporaryTargetActiveAt(dateUtil.now())
+        return tt?.reason == TT.Reason.ACTIVITY
+    }
+
     private fun sendStatus(caller: String) {
         val profile = profileFunction.getProfile()
         var status = rh.gs(app.aaps.core.ui.R.string.noprofile)
@@ -1119,6 +1125,7 @@ class DataHandlerMobile @Inject constructor(
         var currentBasal = ""
         var bgiString = ""
         var carbsReq = 0
+        var exerciseModeActive = false   // 👈
 
         if (config.appInitialized && profile != null) {
             val bolusIob = iobCobCalculator.calculateIobFromBolus().round()
@@ -1135,12 +1142,16 @@ class DataHandlerMobile @Inject constructor(
             bgiString = (if (bgi >= 0) "+" else "") + decimalFormatter.to1Decimal(bgi)
             status = generateStatusString(profile)
 
+
             // 🔹 вместо APS-carbs берём значение из Bolus Wizard (Missing __ g)
             carbsReq = computeWizardCarbsReq(profile)
 
+            // 🔹 проверяем, активен ли сейчас Exercise Mode
+            exerciseModeActive = isExerciseModeActive()
+
             Log.d(
                 TAG,
-                "sendStatus: caller=$caller, wizardCarbsReq=$carbsReq"
+                "sendStatus: caller=$caller, wizardCarbsReq=$carbsReq, exerciseModeActive=$exerciseModeActive"
             )
         }
 
@@ -1170,7 +1181,8 @@ class DataHandlerMobile @Inject constructor(
                     openApsStatus = openApsStatus,
                     bgi = bgiString,
                     batteryLevel = if (phoneBattery >= 30) 1 else 0,
-                    carbsReq = carbsReq
+                    carbsReq = carbsReq,
+                    exerciseModeActive = exerciseModeActive   // активность Exercise mode
                 )
             )
         )

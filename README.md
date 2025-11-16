@@ -125,3 +125,17 @@ adb install -r -t -g wear-full-debug.apk
 Telegram: @alexemplify￼
 Среда: IntelliJ IDEA на macOS
 Репозиторий: GitHub (fixes / master)
+
+13. Текущий процесс разработки 
+Работа с файлами 
+- CircleWatchface.kt
+- ExerciseModeActivity.kt
+- DataHandlerMobile.kt
+- EventData.kt
+
+Задача улучшить управление через часы. 
+Следующий этап - настроить считывание глюкозы через часы 
+Сейчас это возможно только на экране xDrip 
+Нжуно чтобы это работало когда открыт экран AAPS
+Далее сделаем чтобы когда отходишь от помпы - часы продолжали ею управлять
+по аналогии с xdrip если отходишь то часы могут перехватить сахар

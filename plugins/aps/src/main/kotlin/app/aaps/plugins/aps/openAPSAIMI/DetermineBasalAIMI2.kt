@@ -5458,10 +5458,13 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 val peakValue = listOfNotNull(summary.forecastPeak, predictedBg.toDouble(), eventualBG)
                     .filter { it.isFinite() }
                     .maxOrNull()
+                val forecastAlreadyNeedsCarbs = (summary.carbsRequirement?.first ?: 0) > 0 ||
+                    summary.forecastFloor < target_bg
                 val deficit = if (
                     sens > 0.0 &&
                     peakValue != null &&
-                    peakValue > target_bg + 10.0
+                    peakValue > target_bg + 10.0 &&
+                    !forecastAlreadyNeedsCarbs
                 ) {
                     round((peakValue - target_bg) / sens, 2).coerceAtLeast(0.0)
                 } else {
@@ -5579,22 +5582,64 @@ class DetermineBasalaimiSMB2 @Inject constructor(
 
             var finalForecastSummary = summarizeFinalForecast()
             val plannedSmbBeforeFinalForecast = result.units ?: 0.0
+            val plannedRateBeforeFinalForecast = result.rate ?: profile_current_basal
+            val plannedDurationBeforeFinalForecast = result.duration ?: 30
             val finalForecastCarbsBeforeGuard = finalForecastSummary.carbsRequirement?.first ?: 0
             val finalForecastHypoFloor = result.hypoThreshold ?: computeHypoThreshold(minBg, profile.lgsThreshold)
-            val finalForecastBlocksSmb = plannedSmbBeforeFinalForecast > 0.0 &&
+            val finalForecastSafeFloor = max(finalForecastHypoFloor + 15.0, target_bg - 10.0)
+            val plannedBasalExtraBeforeFinalForecast = if (
+                plannedRateBeforeFinalForecast.isFinite() &&
+                profile_current_basal.isFinite() &&
+                plannedDurationBeforeFinalForecast > 0
+            ) {
+                ((plannedRateBeforeFinalForecast - profile_current_basal).coerceAtLeast(0.0) *
+                    plannedDurationBeforeFinalForecast.toDouble() / 60.0)
+            } else {
+                0.0
+            }
+            val plannedFreshInsulinBeforeFinalForecast = plannedSmbBeforeFinalForecast + plannedBasalExtraBeforeFinalForecast
+            val projectedFloorAfterFreshInsulin = if (sens > 0.0 && plannedFreshInsulinBeforeFinalForecast > 0.0) {
+                finalForecastSummary.forecastFloor - plannedFreshInsulinBeforeFinalForecast * sens
+            } else {
+                finalForecastSummary.forecastFloor
+            }
+            val finalForecastBlocksSmb = plannedFreshInsulinBeforeFinalForecast > 0.0 &&
                 (
                     finalForecastSummary.forecastFloor <= finalForecastHypoFloor ||
-                        (finalForecastCarbsBeforeGuard > 0 && finalForecastSummary.forecastFloor <= target_bg)
+                        (finalForecastCarbsBeforeGuard > 0 && finalForecastSummary.forecastFloor <= target_bg) ||
+                        projectedFloorAfterFreshInsulin <= finalForecastSafeFloor
                     )
 
             if (finalForecastBlocksSmb) {
+                val allowedFreshInsulin = if (sens > 0.0) {
+                    ((finalForecastSummary.forecastFloor - finalForecastSafeFloor) / sens).coerceIn(0.0, plannedFreshInsulinBeforeFinalForecast)
+                } else {
+                    0.0
+                }
+                val allowedSmb = min(plannedSmbBeforeFinalForecast, allowedFreshInsulin)
+                val remainingAllowance = (allowedFreshInsulin - allowedSmb).coerceAtLeast(0.0)
+                val allowedRate = if (plannedBasalExtraBeforeFinalForecast > 0.0 && plannedDurationBeforeFinalForecast > 0) {
+                    profile_current_basal + remainingAllowance * 60.0 / plannedDurationBeforeFinalForecast.toDouble()
+                } else {
+                    plannedRateBeforeFinalForecast
+                }
                 result.units = 0.0
                 result.insulinReq = 0.0
-                predictedSMB = 0f
-                val guardReason = "SMB запрещён финальным прогнозом: " +
+                if (allowedSmb > 0.01) {
+                    result.units = round(allowedSmb, 3)
+                    result.insulinReq = result.units
+                }
+                if (plannedBasalExtraBeforeFinalForecast > 0.0) {
+                    result.rate = roundBasal(allowedRate.coerceIn(0.0, plannedRateBeforeFinalForecast))
+                }
+                predictedSMB = (result.units ?: 0.0).toFloat()
+                val guardReason = "Свежий инсулин приведён к финальному прогнозу: " +
                     "min=${"%.0f".format(finalForecastSummary.forecastFloor)}, " +
+                    "после свежего инсулина≈${"%.0f".format(projectedFloorAfterFreshInsulin)}, " +
+                    "безопасный пол=${"%.0f".format(finalForecastSafeFloor)}, " +
                     "углеводы=${finalForecastCarbsBeforeGuard}г, " +
-                    "было=${"%.2f".format(plannedSmbBeforeFinalForecast)}U"
+                    "SMB ${"%.2f".format(plannedSmbBeforeFinalForecast)}→${"%.2f".format(result.units ?: 0.0)}U, " +
+                    "базал ${"%.2f".format(plannedRateBeforeFinalForecast)}→${"%.2f".format(result.rate ?: 0.0)}U/h"
                 consoleLog.add(guardReason)
                 result.reason.append(" | $guardReason;")
                 applyDecisionAwarePredictions(recomputeForCurrentDecision())

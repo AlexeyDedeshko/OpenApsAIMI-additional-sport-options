@@ -833,6 +833,14 @@ class WizardDialog : DaggerDialogFragment() {
         val values = overviewData.finalAimiPredictionValues
             .filter { it.timestamp >= now + T.mins(15).msecs() && it.value.isFinite() && it.value > 0.0 }
         if (values.isEmpty()) return 0.0
+        val minForecast = values.minOf { it.value }
+        if (minForecast < targetMgdl || forecastRequiredCarbsFromFinalLine(profile, tempTarget, useTT) > 0) {
+            aapsLogger.debug(
+                LTag.APS,
+                "Wizard forecast insulin deficit suppressed: min=${"%.0f".format(minForecast)} target=${"%.0f".format(targetMgdl)}"
+            )
+            return 0.0
+        }
         val peak = values.maxOf { it.value }
         val isfMgdl = currentDecisionIsfMgdl(profile, "Wizard forecast insulin deficit")
             .takeIf { it.isFinite() && it > 0.0 } ?: return 0.0

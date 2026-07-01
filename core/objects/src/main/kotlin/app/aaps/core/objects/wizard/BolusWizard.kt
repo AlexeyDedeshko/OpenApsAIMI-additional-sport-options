@@ -198,7 +198,8 @@ class BolusWizard @Inject constructor(
         positiveIOBOnly: Boolean = false,
         forecastRequiredCarbs: Int? = null,
         activityNewInsulinFactor: Double = 1.0,
-        activityDescription: String? = null
+        activityDescription: String? = null,
+        skipAimiMealAssist: Boolean = false
     ): BolusWizard {
 
         this.profile = profile
@@ -334,6 +335,15 @@ class BolusWizard @Inject constructor(
         val bolusStep = activePlugin.activePump.pumpDescription.bolusStep
         calculatedTotalInsulin = Round.roundTo(calculatedTotalInsulin, bolusStep)
         insulinAfterConstraints = constraintChecker.applyBolusConstraints(ConstraintObject(calculatedTotalInsulin, aapsLogger)).value()
+
+        if (skipAimiMealAssist) {
+            aapsLogger.debug(
+                LTag.APS,
+                "BolusWizard correction-only forecast deficit: skip AIMI meal assist, " +
+                    "calculated=${"%.2f".format(calculatedTotalInsulin)} constrained=${"%.2f".format(insulinAfterConstraints)}"
+            )
+            return this
+        }
 
         val wizardInput = buildAimiMealInput()
         val aimiDecision = aimiMealAssist.evaluate(wizardInput)

@@ -330,7 +330,9 @@ object SmbInstructionExecutor {
             val mpcSharePct = 100.0 * mpcShare
             input.rT.reason.append(" | MPC utile: %.0f%% (alpha=%.0f%%)".format(mpcSharePct, 100 * alpha))
         }
-        var smbDecision = (alpha * optimalBasalMpc + (1 - alpha) * finalInsulinDose).toFloat()
+        var smbDecision = (mpcUsed + piUsed)
+            .coerceAtMost(input.maxSmb)
+            .toFloat()
 
         val suspectedLateFatMeal = input.highCarbTime && hooks.runtimeToMinutes(input.highCarbRunTime) > 90
         val exerciseContext = input.sportTime || input.plannedActivityForNewInsulin

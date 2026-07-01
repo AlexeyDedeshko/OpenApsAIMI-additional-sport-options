@@ -350,6 +350,7 @@
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:paddingHorizontal="2dp"
+        android:paddingTop="8dp"
         app:layout_constraintEnd_toStartOf="@+id/extended_layout"
         app:layout_constraintHorizontal_weight="1"
         app:layout_constraintStart_toEndOf="@+id/cob_layout"
@@ -361,6 +362,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
+            android:translationY="6dp"
             app:srcCompat="@drawable/ic_cp_basal_no_tbr"
             android:contentDescription="@string/basal" />
 
@@ -371,7 +373,7 @@
             android:ellipsize="end"
             android:gravity="center_horizontal"
             android:maxLines="1"
-            android:paddingTop="3dp"
+            android:paddingTop="18dp"
             android:paddingBottom="3dp"
             android:textAlignment="center"
             tools:text="n/a"

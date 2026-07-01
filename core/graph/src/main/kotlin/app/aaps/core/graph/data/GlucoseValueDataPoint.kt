@@ -51,7 +51,7 @@ class GlucoseValueDataPoint(
             SourceSensor.AIMI_ACTIVITY_WAITING_PREDICTION -> rh.gc(app.aaps.core.ui.R.color.aimi_activity_waiting_prediction)
             SourceSensor.AIMI_ACTIVITY_ACTIVE_PREDICTION -> rh.gc(app.aaps.core.ui.R.color.aimi_activity_active_prediction)
             SourceSensor.AIMI_ACTIVITY_TAIL_PREDICTION -> rh.gc(app.aaps.core.ui.R.color.aimi_activity_tail_prediction)
-            SourceSensor.AIMI_BEFORE_DECISION_PREDICTION -> rh.gac(context, app.aaps.core.ui.R.attr.carbsColor)
+            SourceSensor.AIMI_BEFORE_DECISION_PREDICTION -> rh.gac(context, app.aaps.core.ui.R.attr.deviationGreyColor)
             SourceSensor.AIMI_MOMENTUM_SOFT_PREDICTION -> rh.gac(context, app.aaps.core.ui.R.attr.uamColor)
             SourceSensor.AIMI_FINAL_PREDICTION_STALE -> rh.gac(context, app.aaps.core.ui.R.attr.lowColor)
             else                          -> rh.gac(context, app.aaps.core.ui.R.attr.defaultTextColor)

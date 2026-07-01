@@ -115,7 +115,7 @@ class BasalDecisionEngineTest {
                         nightMode = false,
                         modesCondition = true,
                         autodrive = true,
-                        currentTemp = CurrentTemp(0.0, 0, 0.0),
+                        currentTemp = CurrentTemp(0, 0.0, 0),
                         glucoseStatus = null,
                         featuresCombinedDelta = null,
                         smbToGive = 0.0,
@@ -123,7 +123,7 @@ class BasalDecisionEngineTest {
                         minutesSinceLastChange = 10
                 )
 
-        val rT = RT()
+        val rT = RT(runningDynamicIsf = false)
         val helpers =
                 BasalDecisionEngine.Helpers(
                         calculateRate = { basal, current, mult, _ ->

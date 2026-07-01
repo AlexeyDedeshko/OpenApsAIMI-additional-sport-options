@@ -149,7 +149,7 @@ class SmbDomainHeuristicsTest {
             pumpStep = 0.05
         )
         assertTrue(res.overrideUsed)
-        assertEquals(0.05, res.dose, 1e-6)
+        assertEquals(0.1, res.dose, 1e-6)
         assertEquals(0, res.newInterval)
     }
 
@@ -308,6 +308,54 @@ class SmbDomainHeuristicsTest {
     }
 
     @Test
+    fun recentSmbGuardAllowsSmallNightCorrectionWhenForecastStillHigh() {
+        val decision = RecentSmbOverdeliveryGuard.evaluate(
+            RecentSmbOverdeliveryGuard.Input(
+                noActiveMealMode = true,
+                visibleCobG = 0.0,
+                explicitFoodActive = false,
+                bg = 224.0,
+                iobU = 3.4,
+                maxSmbU = 1.5,
+                highBgMaxSmbU = 2.5,
+                recentSmb15U = 0.0,
+                recentSmb30U = 1.0,
+                proposedSmbU = 0.3,
+                nightNoMeal = true,
+                delta = 26.0,
+                eventualBg = 298.0,
+                targetBg = 117.0
+            )
+        )
+
+        assertFalse(decision.blockSmb)
+    }
+
+    @Test
+    fun recentSmbGuardBlocksLargeNightCorrectionBurstEvenWhenForecastHigh() {
+        val decision = RecentSmbOverdeliveryGuard.evaluate(
+            RecentSmbOverdeliveryGuard.Input(
+                noActiveMealMode = true,
+                visibleCobG = 0.0,
+                explicitFoodActive = false,
+                bg = 224.0,
+                iobU = 3.4,
+                maxSmbU = 1.5,
+                highBgMaxSmbU = 2.5,
+                recentSmb15U = 0.0,
+                recentSmb30U = 1.0,
+                proposedSmbU = 0.95,
+                nightNoMeal = true,
+                delta = 26.0,
+                eventualBg = 298.0,
+                targetBg = 117.0
+            )
+        )
+
+        assertTrue(decision.blockSmb)
+    }
+
+    @Test
     fun recentSmbGuardLeavesExtremeBgToHighBgLogic() {
         val decision = RecentSmbOverdeliveryGuard.evaluate(
             RecentSmbOverdeliveryGuard.Input(
@@ -346,6 +394,31 @@ class SmbDomainHeuristicsTest {
         )
 
         assertEquals(0.0, limit.maxSmbU, 1e-6)
+        assertTrue(limit.reason.contains("нет активной еды"))
+    }
+
+    @Test
+    fun recentSmbCorrectionLimitTurnsNightHighRiseIntoSmallSteps() {
+        val limit = RecentSmbOverdeliveryGuard.correctionLimit(
+            RecentSmbOverdeliveryGuard.Input(
+                noActiveMealMode = true,
+                visibleCobG = 0.0,
+                explicitFoodActive = false,
+                bg = 224.0,
+                iobU = 3.4,
+                maxSmbU = 1.5,
+                highBgMaxSmbU = 2.5,
+                recentSmb15U = 0.0,
+                recentSmb30U = 1.0,
+                nightNoMeal = true,
+                delta = 26.0,
+                eventualBg = 298.0,
+                targetBg = 117.0
+            )
+        )
+
+        assertTrue(limit.maxSmbU > 0.0)
+        assertTrue(limit.maxSmbU <= 0.4)
         assertTrue(limit.reason.contains("нет активной еды"))
     }
 
@@ -389,6 +462,32 @@ class SmbDomainHeuristicsTest {
                 eventualBg = 39.0,
                 predictedBg = 39.0,
                 minGuardBg = 39.0,
+                targetBg = 117.0
+            )
+        )
+
+        assertTrue(decision.blockSmb)
+        assertTrue(decision.reason.contains("прогноз ниже цели"))
+    }
+
+    @Test
+    fun recentSmbGuardBlocksUnsafeNightForecastUpToHighBg() {
+        val decision = RecentSmbOverdeliveryGuard.evaluate(
+            RecentSmbOverdeliveryGuard.Input(
+                noActiveMealMode = true,
+                visibleCobG = 0.0,
+                explicitFoodActive = false,
+                bg = 224.0,
+                iobU = 3.4,
+                maxSmbU = 1.5,
+                highBgMaxSmbU = 2.5,
+                recentSmb15U = 0.0,
+                recentSmb30U = 1.0,
+                proposedSmbU = 0.3,
+                nightNoMeal = true,
+                eventualBg = 47.0,
+                predictedBg = 47.0,
+                minGuardBg = 47.0,
                 targetBg = 117.0
             )
         )

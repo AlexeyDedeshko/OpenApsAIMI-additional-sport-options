@@ -110,7 +110,10 @@ object AdvancedPredictionEngine {
         val explicitFastCarbs = explicitTypedCarbs && effectiveFoodTypeName == "fast"
         val typedCarbImpactCapMgdlPer5m = when {
             explicitFastCarbs -> 28.0
-            explicitTypedCarbs && effectiveFoodTypeName == "balanced" -> 42.0
+            explicitTypedCarbs && effectiveFoodTypeName == "balanced" ->
+                (totalCarbEffectMgDl * 0.065).coerceIn(12.0, 18.0)
+            explicitTypedCarbs && effectiveFoodTypeName == "slow" ->
+                (totalCarbEffectMgDl * 0.05).coerceIn(8.0, 14.0)
             else -> Double.POSITIVE_INFINITY
         }
         val observedCarbImpact = observedCarbImpactMgdlPer5m.coerceAtLeast(0.0)

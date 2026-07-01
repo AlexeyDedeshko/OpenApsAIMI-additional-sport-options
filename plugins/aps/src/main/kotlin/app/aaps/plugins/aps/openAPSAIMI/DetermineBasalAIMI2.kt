@@ -909,7 +909,7 @@ class DetermineBasalaimiSMB2 @Inject constructor(
 
     private fun nightNoMealContext(mealData: MealData): Boolean {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val nightWindow = sleepTime || hour >= 23 || hour <= 6
+        val nightWindow = sleepTime || hour >= 22 || hour <= 6
         return nightWindow &&
             noActiveMealMode() &&
             mealData.mealCOB <= 6.0 &&
@@ -982,9 +982,16 @@ class DetermineBasalaimiSMB2 @Inject constructor(
         if (!nightNoMealContext(mealData)) return null to null
         val stronglyHighAndRising = bg >= 280.0 && delta >= 3.0f && eventualBG >= targetBg + 80.0
         val clearlyHighAndRising = bg >= 220.0 && delta >= 2.0f && eventualBG >= targetBg + 60.0
+        val moderateHighAndRising = bg >= 150.0 &&
+            delta >= 2.0f &&
+            shortAvgDelta >= 1.0f &&
+            eventualBG >= targetBg + 60.0 &&
+            minOf(predictedBg.toDouble(), eventualBG) >= targetBg + 45.0
         val cap = when {
             stronglyHighAndRising -> 0.5
             clearlyHighAndRising -> 0.3
+            moderateHighAndRising && iob < 1.5f && recentSmb30 < 1.0 -> 0.15
+            moderateHighAndRising && iob < 2.0f && recentSmb30 < 0.5 -> 0.10
             iob >= 2.5f || recentSmb30 >= 0.5 || eventualBG < targetBg + 70.0 -> 0.0
             else -> 0.2
         }
@@ -1025,8 +1032,24 @@ class DetermineBasalaimiSMB2 @Inject constructor(
         val recentLowPenalty = if (bg < 95.0 || lastHourTIRLow > 0.0 || lastHourTIRLow100 > 0.0) 0.35 else 0.0
         val freshSmbPenalty = if (freshSmbPressureUnits() >= 0.2) 0.25 else 0.0
         val cobSupport = if (mealData.mealCOB > 0.0) 0.20 else 0.0
+        val nightNoMeal = nightNoMealContext(mealData)
+        val nightNoMealPenalty = if (nightNoMeal) {
+            when {
+                iob >= 3.0f -> 0.45
+                iob >= 1.5f -> 0.30
+                else -> 0.20
+            }
+        } else {
+            0.0
+        }
 
-        return (sustainedRiseScore + cobSupport - recentLowPenalty - freshSmbPenalty).coerceIn(0.0, 1.0)
+        val confidence = (sustainedRiseScore + cobSupport - recentLowPenalty - freshSmbPenalty - nightNoMealPenalty)
+            .coerceIn(0.0, 1.0)
+        return if (nightNoMeal) {
+            confidence.coerceAtMost(if (iob >= 2.5f) 0.25 else 0.45)
+        } else {
+            confidence
+        }
     }
 
     private fun explicitCarbEntryActive(mealData: MealData): Boolean =
@@ -1120,8 +1143,15 @@ class DetermineBasalaimiSMB2 @Inject constructor(
     private fun isEarlyOverdeliveryRisk(mealData: MealData): Boolean =
         earlyOverdeliverySmbCap(mealData) != null
 
-    private fun earlyOverdeliveryBasalRate(profileCurrentBasal: Double): Double =
-        if (delta < 0.0f || minOf(predictedBg.toDouble(), eventualBG) < 120.0) 0.0 else profileCurrentBasal
+    private fun earlyOverdeliveryBasalRate(profileCurrentBasal: Double): Double {
+        val preliminaryLowForecast = minOf(predictedBg.toDouble(), eventualBG) < 120.0
+        val highAndNotFalling = bg >= 170.0 && delta >= 0.0f && shortAvgDelta >= -0.5f
+        return when {
+            delta < 0.0f -> 0.0
+            preliminaryLowForecast && !highAndNotFalling -> 0.0
+            else -> profileCurrentBasal
+        }
+    }
 
     fun appendCompactLog(
         reason: StringBuilder,
@@ -4900,6 +4930,20 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 }
             }
             val firstBelowMinute = window.firstOrNull { it.second.toDouble() < target_bg }?.first?.let { it * 5 }
+            val insulinDeficit = if (sens > 0.0 && belowTargetRun == 0 && minValue.toDouble() > target_bg + 10.0) {
+                round((minValue.toDouble() - target_bg) / sens, 2).coerceAtLeast(0.0)
+            } else {
+                0.0
+            }
+            result.finalForecastInsulinDeficit = insulinDeficit
+            result.finalForecastInsulinDeficitMinutes = if (insulinDeficit > 0.01) minIndex * 5 else null
+            if (insulinDeficit > 0.01) {
+                consoleLog.add(
+                    "Недостаток инсулина по финальному прогнозу: ${"%.2f".format(insulinDeficit)}U " +
+                        "на +${minIndex * 5}м, min=${"%.0f".format(minValue.toDouble())}, " +
+                        "цель=${"%.0f".format(target_bg)}, ISF=${"%.1f".format(sens)}"
+                )
+            }
             val summary = "рабочая зона +20..+120: " +
                 "min=${"%.0f".format(minValue.toDouble())} на +${minIndex * 5}m, " +
                 "ниже цели подряд=$belowTargetRun" +
@@ -4974,6 +5018,12 @@ class DetermineBasalaimiSMB2 @Inject constructor(
             rT.predictedBG = predictedBg.toDouble()
             rT.minGuardBG = minOf(bg, guardedPredictions.minGuard)
             rT.reason.append(" | Базал ограничен защитой от раннего перелива: ${"%.2f".format(guardRate)} U/h")
+            if (guardRate > 0.0 && minOf(predictedBg.toDouble(), eventualBG) < 120.0 && bg >= 170.0 && delta >= 0.0f) {
+                consoleLog.add(
+                    "Защита раннего перелива: SMB заблокирован, но профильный базал сохранен, " +
+                        "потому что BG высокий и не падает (BG=${"%.0f".format(bg)}, delta=${"%.1f".format(delta)})."
+                )
+            }
             consoleLog.add(
                 "Прогноз пересчитан с защитой от раннего перелива: " +
                     "SMB=0.00U, базал=${"%.2f".format(guardRate)}U/h, " +
@@ -5345,6 +5395,8 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 val actionWindowMinMinute: Int?,
                 val belowTargetRun: Int,
                 val firstBelowMinute: Int?,
+                val forecastPeak: Double?,
+                val forecastPeakMinute: Int?,
                 val carbsRequirement: Pair<Int, Int>?,
                 val workingZoneSummary: String,
                 val forecastFloor: Double
@@ -5365,6 +5417,16 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 }
                 val finalBelowTargetRun = maxConsecutiveBelowTarget(finalActionWindow, target_bg)
                 val actionWindowFirstBelow = firstBelowMinute(finalAimiSeries, actionStartIndex, target_bg)
+                val futureWindow = if (finalAimiSeries.size > actionStartIndex) {
+                    finalAimiSeries.subList(actionStartIndex, finalAimiSeries.size)
+                } else {
+                    emptyList()
+                }
+                val futurePeak = futureWindow.maxOrNull()?.toDouble()
+                val futurePeakMinute = futurePeak?.let { peak ->
+                    val offset = futureWindow.indexOfFirst { it.toDouble() == peak }
+                    (actionStartIndex + offset) * 5
+                }
                 val workingZoneSummary = if (finalActionWindow.isNotEmpty()) {
                     "рабочая зона +20..+120: " +
                         "min=${finalActionWindowMin?.let { "%.0f".format(it) } ?: "n/a"}" +
@@ -5384,10 +5446,38 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                     actionWindowMinMinute = finalActionWindowMinMinute,
                     belowTargetRun = finalBelowTargetRun,
                     firstBelowMinute = actionWindowFirstBelow,
+                    forecastPeak = futurePeak,
+                    forecastPeakMinute = futurePeakMinute,
                     carbsRequirement = finalForecastCarbsRequirement(finalAimiSeries, actionStartIndex, finalActionEndIndex),
                     workingZoneSummary = workingZoneSummary,
                     forecastFloor = forecastFloor
                 )
+            }
+
+            fun applyFinalForecastInsulinDeficit(summary: FinalForecastSummary) {
+                val peakValue = listOfNotNull(summary.forecastPeak, predictedBg.toDouble(), eventualBG)
+                    .filter { it.isFinite() }
+                    .maxOrNull()
+                val deficit = if (
+                    sens > 0.0 &&
+                    peakValue != null &&
+                    peakValue > target_bg + 10.0
+                ) {
+                    round((peakValue - target_bg) / sens, 2).coerceAtLeast(0.0)
+                } else {
+                    0.0
+                }
+                result.finalForecastInsulinDeficit = deficit
+                result.finalForecastInsulinDeficitMinutes = if (deficit > 0.01) summary.forecastPeakMinute else null
+                if (deficit > 0.01) {
+                    consoleLog.add(
+                        "Недостаток инсулина по финальному прогнозу: ${"%.2f".format(deficit)}U " +
+                            "на +${summary.forecastPeakMinute ?: 0}м, peak=${"%.0f".format(peakValue ?: 0.0)}, " +
+                            "цель=${"%.0f".format(target_bg)}, ISF=${"%.1f".format(sens)}; " +
+                            (if (summary.belowTargetRun > 0) "ранний участок ниже цели блокирует подачу, но не скрывает будущую потребность; " else "") +
+                            "это потребность по прогнозу, а не разрешение на немедленную подачу"
+                    )
+                }
             }
 
             fun formatMgdl(value: Double?): String =
@@ -5407,7 +5497,12 @@ class DetermineBasalaimiSMB2 @Inject constructor(
             fun forecastText(summary: FinalForecastSummary): String {
                 val minText = summary.actionWindowMin?.let { formatMgdl(it) } ?: formatMgdl(summary.forecastFloor)
                 val minTimeText = summary.actionWindowMinMinute?.let { " примерно через $it мин" } ?: ""
-                return "ожидаю сахар около ${formatMgdl(eventualBG)}, самый низкий прогноз $minText$minTimeText"
+                val guardFloor = result.minGuardBG
+                val guardFloorText = guardFloor
+                    ?.takeIf { it.isFinite() && it + 1.0 < (summary.actionWindowMin ?: it) }
+                    ?.let { ", но текущий guard-низ уже ${formatMgdl(it)}" }
+                    ?: ""
+                return "ожидаю сахар около ${formatMgdl(eventualBG)}, рабочий минимум прогноза $minText$minTimeText$guardFloorText"
             }
 
             fun buildHumanDecisionTrace(
@@ -5423,6 +5518,16 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 val finalCarbsWithin = result.carbsReqWithin ?: 0
                 val forecastWouldBeLow = summary.forecastFloor <= hypoFloor || finalForecastBlockedSmb
                 val insulinReq = result.insulinReq ?: 0.0
+                val currentHypoGuardBlocksInsulin =
+                    result.safetyMechanism?.contains("Hypo", ignoreCase = true) == true ||
+                        bg <= hypoFloor ||
+                        bg <= 60.0 ||
+                        (bg < target_bg && delta < 0.0)
+                val futureHighButCurrentLow =
+                    insulinReq <= 0.0 &&
+                        currentHypoGuardBlocksInsulin &&
+                        maxOf(eventualBG, predictedBg.toDouble()) > target_bg + 20.0
+                val finalForecastInsulinDeficit = result.finalForecastInsulinDeficit ?: 0.0
                 val basalText = if (finalRate != null && finalDuration > 0) {
                     "ставлю базал ${formatUnits(finalRate)} Е/ч на ${finalDuration} мин"
                 } else {
@@ -5452,6 +5557,12 @@ class DetermineBasalaimiSMB2 @Inject constructor(
 
                     finalForecastBlockedSmb ->
                         "Инсулин сейчас не добавляю: расчет сначала хотел ${formatUnits(plannedSmbBeforeGuard)} Е, но после проверки итогового прогноза это выглядело опасно низко. Главное место для проверки: почему расчет хотел инсулин до финальной проверки."
+
+                    finalForecastInsulinDeficit > 0.01 ->
+                        "По финальному графику сахар остается выше цели, не хватает примерно ${formatUnits(finalForecastInsulinDeficit)} Е, но автоматическая микродоза сейчас не дана из-за защитных ограничений; $basalText. Главное место для проверки: почему защита видит риск перелива, а итоговый график после решения все еще высокий."
+
+                    futureHighButCurrentLow ->
+                        "Инсулин сейчас не добавляю не потому, что будущий высокий прогноз нормальный, а потому что текущий сахар ниже безопасного порога и защита от гипо сильнее прогноза отскока; $basalText. Главное место для проверки: не наложились ли лишние или неверно типизированные углеводы в COB."
 
                     insulinReq <= 0.0 ->
                         "Инсулин сейчас не добавляю, потому что уже активного инсулина по расчету достаточно; $basalText. Если сахар все равно ожидаемо уйдет выше цели, главное место для проверки: активный инсулин или чувствительность могли быть оценены слишком оптимистично."
@@ -5503,6 +5614,7 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                     )
                 }
             }
+            applyFinalForecastInsulinDeficit(finalForecastSummary)
             consoleLog.add("AIMI FINAL: ${finalForecastSummary.workingZoneSummary}")
             val sanitizedReason = result.reason.toString()
                 .replace(Regex("""\d+\s+add'l carbs req w/in \d+min;\s*"""), "")

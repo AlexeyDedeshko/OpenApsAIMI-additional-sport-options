@@ -266,6 +266,7 @@
             android:layout_weight="1"
             android:gravity="center_horizontal"
             android:orientation="vertical"
+            android:paddingTop="8dp"
             tools:ignore="UseCompoundDrawables">
 
             <ImageView
@@ -274,6 +275,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/basal"
+                android:translationY="6dp"
                 android:src="@drawable/ic_cp_basal_no_tbr" />
 
             <TextView
@@ -281,7 +283,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
-                android:paddingTop="3dp"
+                android:paddingTop="18dp"
                 android:paddingBottom="3dp"
                 android:text="n/a"
                 android:textColor="@color/white"

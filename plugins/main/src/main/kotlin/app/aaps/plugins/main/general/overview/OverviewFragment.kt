@@ -41,6 +41,7 @@ import app.aaps.core.interfaces.aps.AimiMealAssist
 import app.aaps.core.interfaces.aps.APSResult
 import app.aaps.core.interfaces.aps.IobTotal
 import app.aaps.core.interfaces.aps.Loop
+import app.aaps.core.interfaces.aps.RT
 import app.aaps.core.interfaces.automation.Automation
 import app.aaps.core.interfaces.bgQualityCheck.BgQualityCheck
 import app.aaps.core.interfaces.configuration.Config
@@ -93,6 +94,7 @@ import app.aaps.core.interfaces.source.XDripSource
 import app.aaps.core.interfaces.ui.UiInteraction
 import app.aaps.core.interfaces.utils.DateUtil
 import app.aaps.core.interfaces.utils.DecimalFormatter
+import app.aaps.core.interfaces.utils.Round
 import app.aaps.core.interfaces.utils.TrendCalculator
 import app.aaps.core.interfaces.utils.fabric.FabricPrivacy
 import app.aaps.core.keys.BooleanKey
@@ -1145,12 +1147,23 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
         val temporaryBasalColor = overviewData.temporaryBasalColor(context)
         val temporaryBasalIcon = overviewData.temporaryBasalIcon()
         val temporaryBasalDialogText = overviewData.temporaryBasalDialogText()
+        val insulinLimitOverview = apsInsulinDeliveryOverview(loop.lastRun?.constraintsProcessed)
+            ?: if (config.APS) apsInsulinDeliveryUnavailableOverview() else null
         runOnUiThread {
             _binding ?: return@runOnUiThread
-            binding.infoLayout.baseBasal.text = temporaryBasalText
-            binding.infoLayout.baseBasal.setTextColor(temporaryBasalColor)
-            binding.infoLayout.baseBasalIcon.setImageResource(temporaryBasalIcon)
-            binding.infoLayout.basalLayout.setOnClickListener { activity?.let { OKDialog.show(it, rh.gs(app.aaps.core.ui.R.string.basal), temporaryBasalDialogText) } }
+            if (insulinLimitOverview != null) {
+                binding.infoLayout.baseBasal.text = insulinLimitOverview.label
+                binding.infoLayout.baseBasal.setTextColor(rh.gac(context, insulinLimitOverview.colorAttr))
+                binding.infoLayout.baseBasalIcon.setImageResource(app.aaps.core.ui.R.drawable.ic_shield)
+                binding.infoLayout.basalLayout.setOnClickListener {
+                    activity?.let { OKDialog.show(it, insulinLimitOverview.title, insulinLimitOverview.detailText) }
+                }
+            } else {
+                binding.infoLayout.baseBasal.text = temporaryBasalText
+                binding.infoLayout.baseBasal.setTextColor(temporaryBasalColor)
+                binding.infoLayout.baseBasalIcon.setImageResource(temporaryBasalIcon)
+                binding.infoLayout.basalLayout.setOnClickListener { activity?.let { OKDialog.show(it, rh.gs(app.aaps.core.ui.R.string.basal), temporaryBasalDialogText) } }
+            }
         }
     }
 
@@ -1212,6 +1225,13 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
         val colorAttr: Int
     )
 
+    private data class InsulinLimitOverview(
+        val label: String,
+        val title: String,
+        val colorAttr: Int,
+        val detailText: String
+    )
+
     private data class WizardPreviewInputs(
         val useCob: Boolean,
         val useTrend: Boolean,
@@ -1220,13 +1240,241 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
         val useTT: Boolean
     )
 
-    private fun apsCarbsDecisionLine(result: APSResult?, finalForecastCarbsReq: Int? = null, suppressApsCarbsReq: Boolean = false): OverviewDecisionLine? {
-        val apsCarbsReq = if (suppressApsCarbsReq) 0 else result?.carbsReq ?: 0
-        val carbsReq = finalForecastCarbsReq ?: apsCarbsReq
-        return if (carbsReq > 0) {
-            OverviewDecisionLine(
+    private fun insulinReqFromResult(result: APSResult?): Double {
+        val value = result?.json()?.optDouble("insulinReq", 0.0) ?: 0.0
+        return if (java.lang.Double.isFinite(value)) value else 0.0
+    }
+
+    private fun finalForecastInsulinDeficitFromResult(result: APSResult?): Double {
+        val rawValue = (result?.rawData() as? RT)?.finalForecastInsulinDeficit
+        val jsonValue = result?.json()?.optDouble("finalForecastInsulinDeficit", 0.0) ?: 0.0
+        val value = rawValue ?: jsonValue
+        return if (java.lang.Double.isFinite(value)) value else 0.0
+    }
+
+    private data class ForecastSafetyBand(
+        val floor: Double,
+        val target: Double,
+        val hypo: Double
+    ) {
+        val belowHypo: Boolean get() = floor <= hypo
+        val belowTargetOnly: Boolean get() = floor > hypo && floor < target
+    }
+
+    private fun forecastSafetyBandFromResult(result: APSResult?): ForecastSafetyBand {
+        val json = result?.json()
+        val predicted = json?.optDouble("predictedBG", Double.NaN) ?: Double.NaN
+        val eventual = json?.optDouble("eventualBG", Double.NaN) ?: Double.NaN
+        val minGuard = json?.optDouble("minGuardBG", Double.NaN) ?: Double.NaN
+        val target = (json?.optDouble("targetBG", 117.0) ?: 117.0)
+            .takeIf { java.lang.Double.isFinite(it) && it > 0.0 } ?: 117.0
+        val hypo = (json?.optDouble("hypoThreshold", 65.0) ?: 65.0)
+            .takeIf { java.lang.Double.isFinite(it) && it > 0.0 } ?: 65.0
+        val floor = listOf(predicted, eventual, minGuard)
+            .filter { java.lang.Double.isFinite(it) && it > 0.0 }
+            .minOrNull() ?: Double.NaN
+        return ForecastSafetyBand(floor = floor, target = target, hypo = hypo)
+    }
+
+    private fun apsInsulinDeliveryOverview(result: APSResult?): InsulinLimitOverview? {
+        result ?: return null
+
+        val insulinReq = insulinReqFromResult(result)
+        val finalForecastInsulinDeficit = finalForecastInsulinDeficitFromResult(result)
+        val reason = result?.reason?.takeIf { it.isNotBlank() }
+            ?: result?.json()?.optString("reason").orEmpty()
+        val forecastSafetyBand = forecastSafetyBandFromResult(result)
+        val waitingForSmbInterval = isWaitingForSmbInterval(reason)
+        val hasLimitedInsulin = finalForecastInsulinDeficit > insulinReq + 0.1
+        val cause = if (hasLimitedInsulin) insulinLimitCause(reason, forecastSafetyBand) else insulinStatusCause(insulinReq, reason, forecastSafetyBand)
+        val detailText = buildString {
+            append(cause.title)
+            append("\n\n")
+            append(cause.explanation)
+            append("\n\n")
+            append("APS сейчас хочет подать: ")
+            append(rh.gs(app.aaps.core.ui.R.string.format_insulin_units, insulinReq))
+            append("\n")
+            append("Прогнозный дефицит: ")
+            append(rh.gs(app.aaps.core.ui.R.string.format_insulin_units, finalForecastInsulinDeficit))
+            if (java.lang.Double.isFinite(forecastSafetyBand.floor)) {
+                append("\n")
+                append("Нижний прогноз: ")
+                append("%.0f".format(forecastSafetyBand.floor))
+                append(" / цель ")
+                append("%.0f".format(forecastSafetyBand.target))
+                append(" / гипо ")
+                append("%.0f".format(forecastSafetyBand.hypo))
+            }
+        }
+        return InsulinLimitOverview(
+            label = when {
+                waitingForSmbInterval -> "ПАУЗА"
+                hasLimitedInsulin -> "ЛИМИТ"
+                insulinReq > 0.01   -> "APS"
+                else                -> "СТОП"
+            },
+            title = when {
+                waitingForSmbInterval -> "Почему APS ждет"
+                hasLimitedInsulin     -> "Почему APS ограничил инсулин"
+                else                  -> "Что сейчас решил APS"
+            },
+            colorAttr = when {
+                hasLimitedInsulin -> app.aaps.core.ui.R.attr.warningColor
+                insulinReq > 0.01   -> app.aaps.core.ui.R.attr.bolusColor
+                else                -> app.aaps.core.ui.R.attr.defaultTextColor
+            },
+            detailText = detailText
+        )
+    }
+
+    private fun apsInsulinDeliveryUnavailableOverview(): InsulinLimitOverview =
+        InsulinLimitOverview(
+            label = "Н/Д",
+            title = "APS еще не рассчитал решение",
+            colorAttr = app.aaps.core.ui.R.attr.defaultTextColor,
+            detailText = "Нет свежего результата APS. После следующего расчета здесь появится APS, ЛИМИТ или СТОП."
+        )
+
+    private data class InsulinLimitCause(
+        val title: String,
+        val explanation: String
+    )
+
+    private fun insulinLimitCause(reason: String, forecastSafetyBand: ForecastSafetyBand): InsulinLimitCause {
+        val lower = reason.lowercase(Locale.getDefault())
+        return when {
+            isWaitingForSmbInterval(reason) ->
+                InsulinLimitCause(
+                    "Основная причина: ожидание после свежего SMB.",
+                    "Это не лимит активного инсулина. Система уже недавно подала микроболюс и ждет следующий разрешенный интервал, чтобы не складывать SMB чаще, чем разрешено."
+                )
+
+            lower.contains("нет активной еды") && lower.contains("iob") ->
+                InsulinLimitCause(
+                    "Основная причина: нет активной еды, а инсулин уже накоплен.",
+                    "Система видит высокий прогноз, но не дает резко усилить подачу, потому что без подтвержденной еды дополнительный SMB на фоне IOB может легко перелить."
+                )
+
+            lower.contains("нет активной еды") ->
+                InsulinLimitCause(
+                    "Основная причина: нет активной еды.",
+                    "Система не видит подтвержденных углеводов, поэтому не доверяет агрессивной коррекции как пищевому подъему."
+                )
+
+            lower.contains("maxiob reached") ||
+                lower.contains("max iob reached") ||
+                lower.contains("превышен лимит активного инсулина") ||
+                lower.contains("достигнут лимит активного инсулина") ->
+                InsulinLimitCause(
+                    "Основная причина: достигнут лимит активного инсулина.",
+                    "Система считает, что инсулина в организме уже достаточно близко к разрешенному пределу, поэтому не добавляет больше."
+                )
+
+            lower.contains("smb interval") || lower.contains("lastbolusage") || lower.contains("интервал") ->
+                InsulinLimitCause(
+                    "Основная причина: слишком рано после прошлого SMB.",
+                    "Система ждет, чтобы увидеть эффект уже поданного микроболюса, и не складывает новые SMB слишком часто."
+                )
+
+            forecastSafetyBand.belowHypo ->
+                InsulinLimitCause(
+                    "Основная причина: риск низкой глюкозы.",
+                    "Система ограничивает инсулин, потому что финальный прогноз уходит к гипо-порогу или ниже него."
+                )
+
+            forecastSafetyBand.belowTargetOnly ->
+                InsulinLimitCause(
+                    "Основная причина: финальный прогноз ниже цели.",
+                    "Это не прогноз гипо. APS ограничивает дополнительный инсулин, потому что финальная линия уже уходит ниже целевого уровня, хотя остается выше гипо-порога."
+                )
+
+            lower.contains("hypo") || lower.contains("низк") ->
+                InsulinLimitCause(
+                    "Основная причина: защитный прогноз ниже безопасной зоны.",
+                    "Одна из внутренних защитных проверок видит слишком низкую промежуточную линию, но финальный прогноз выше гипо-порога. Поэтому это не то же самое, что видимый прогноз низкой глюкозы."
+                )
+
+            else ->
+                InsulinLimitCause(
+                    "Основная причина: внутренний APS-лимит.",
+                    "Система видит, что прогноз просит больше инсулина, но текущие ограничения APS не разрешают подать его полностью."
+                )
+        }
+    }
+
+    private fun isWaitingForSmbInterval(reason: String): Boolean {
+        val lower = reason.lowercase(Locale.getDefault())
+        return lower.contains("waiting") && lower.contains("microbolus") ||
+            lower.contains("слишком рано после прошлого smb")
+    }
+
+    private fun insulinStatusCause(insulinReq: Double, reason: String, forecastSafetyBand: ForecastSafetyBand): InsulinLimitCause {
+        val lower = reason.lowercase(Locale.getDefault())
+        return when {
+            insulinReq > 0.01 ->
+                InsulinLimitCause(
+                    "Основная причина: APS разрешает инсулин.",
+                    "Это не ограничение. Система сейчас хочет подать указанное количество инсулина, а прогнозный дефицит не просит больше разрешенного APS."
+                )
+
+            forecastSafetyBand.belowHypo ->
+                InsulinLimitCause(
+                    "Основная причина: APS не дает инсулин из-за риска низкой глюкозы.",
+                    "Финальный прогноз уходит к гипо-порогу или ниже него, поэтому система держит требуемый инсулин на нуле."
+                )
+
+            forecastSafetyBand.belowTargetOnly ->
+                InsulinLimitCause(
+                    "Основная причина: финальный прогноз ниже цели.",
+                    "Это не прогноз гипо. Система не добавляет инсулин, потому что финальная линия уже уходит ниже целевого уровня, хотя остается выше гипо-порога."
+                )
+
+            lower.contains("hypo") || lower.contains("низк") ->
+                InsulinLimitCause(
+                    "Основная причина: защитный прогноз ниже безопасной зоны.",
+                    "Одна из внутренних защитных проверок видит слишком низкую промежуточную линию, поэтому APS не добавляет инсулин."
+                )
+
+            lower.contains("нет активной еды") ->
+                InsulinLimitCause(
+                    "Основная причина: APS не видит подтвержденной еды.",
+                    "Система не считает текущий рост надежным пищевым подъемом и поэтому не просит дополнительный инсулин."
+                )
+
+            else ->
+                InsulinLimitCause(
+                    "Основная причина: APS сейчас не просит дополнительный инсулин.",
+                    "По текущей модели активного инсулина, прогноза и ограничений системе не нужен новый SMB прямо сейчас."
+                )
+        }
+    }
+
+    private fun apsDecisionLine(result: APSResult?, finalForecastCarbsReq: Int? = null, suppressCarbsReq: Boolean = false): OverviewDecisionLine? {
+        val apsCarbsReq = if (suppressCarbsReq) 0 else result?.carbsReq ?: 0
+        val carbsReq = if (suppressCarbsReq) 0 else finalForecastCarbsReq ?: apsCarbsReq
+        if (carbsReq > 0) {
+            return OverviewDecisionLine(
                 formatRecommendedCarbs(carbsReq),
                 app.aaps.core.ui.R.attr.carbsColor
+            )
+        }
+        val insulinReq = insulinReqFromResult(result)
+        val forecastInsulinDeficit = finalForecastInsulinDeficitFromResult(result)
+        return if (forecastInsulinDeficit > insulinReq + 0.1) {
+            OverviewDecisionLine(
+                rh.gs(app.aaps.core.ui.R.string.format_insulin_units, forecastInsulinDeficit),
+                app.aaps.core.ui.R.attr.bolusColor
+            )
+        } else if (insulinReq > 0.01) {
+            OverviewDecisionLine(
+                rh.gs(app.aaps.core.ui.R.string.format_insulin_units, insulinReq),
+                app.aaps.core.ui.R.attr.bolusColor
+            )
+        } else if (forecastInsulinDeficit > 0.01) {
+            OverviewDecisionLine(
+                rh.gs(app.aaps.core.ui.R.string.format_insulin_units, forecastInsulinDeficit),
+                app.aaps.core.ui.R.attr.bolusColor
             )
         } else null
     }
@@ -1262,6 +1510,7 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
             if (profile != null && profileStore != null) {
                 val profileName = profileFunction.getProfileName()
                 val forecastRequiredCarbs = forecastRequiredCarbsFromFinalLine(profile, tempTarget, wizardPreviewInputs.useTT)
+                val forecastInsulinDeficit = forecastInsulinDeficitFromFinalLine(profile, tempTarget, wizardPreviewInputs.useTT)
                 val activityBolusContext = currentActivityBolusContext(dateUtil.now())
                 overviewForecastRequiredCarbs = forecastRequiredCarbs
                 val w = bolusWizardProvider.get().doCalc(
@@ -1297,7 +1546,7 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
                         "activityHandledCob=${"%.1f".format(w.cobAlreadyHandledByActivity)} useCob=${wizardPreviewInputs.useCob} " +
                         "useTrend=${wizardPreviewInputs.useTrend} usePercentage=${wizardPreviewInputs.usePercentage} " +
                         "percentage=${wizardPreviewInputs.percentage} useTT=${wizardPreviewInputs.useTT} " +
-                        "forecastRequiredCarbs=${w.forecastRequiredCarbs} source=${w.forecastRequiredCarbsSource} " +
+                        "forecastRequiredCarbs=${w.forecastRequiredCarbs} forecastInsulinDeficit=${"%.2f".format(forecastInsulinDeficit)} source=${w.forecastRequiredCarbsSource} " +
                         "activityFactor=${"%.2f".format(activityBolusContext?.factor ?: 1.0)}" +
                         (activityBolusContext?.description?.let { " activity=$it" } ?: "")
                 )
@@ -1311,6 +1560,11 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
                 } else if (w.calculatedTotalInsulin > 0.0) {
                     OverviewDecisionLine(
                         rh.gs(app.aaps.core.ui.R.string.format_insulin_units, w.calculatedTotalInsulin),
+                        app.aaps.core.ui.R.attr.bolusColor
+                    )
+                } else if (forecastInsulinDeficit > 0.01) {
+                    OverviewDecisionLine(
+                        rh.gs(app.aaps.core.ui.R.string.format_insulin_units, forecastInsulinDeficit),
                         app.aaps.core.ui.R.attr.bolusColor
                     )
                 } else {
@@ -1335,19 +1589,22 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
             var animationCarbsReq = overviewForecastRequiredCarbs ?: 0
             if (config.APS && constraintsProcessed != null && lastRun != null) {
                 val treatmentRecalcPending = finalForecastPendingTreatmentRecalculation(dateUtil.now(), "Overview decision line")
-                val decisionLine = apsCarbsDecisionLine(
+                val decisionLine = apsDecisionLine(
                     constraintsProcessed,
                     overviewForecastRequiredCarbs,
-                    suppressApsCarbsReq = treatmentRecalcPending
-                ) ?: wizardLine
+                    suppressCarbsReq = treatmentRecalcPending
+                )
 
-                // Показываем то же решение, которое уже использовано для финального прогноза.
+                // Показываем APS-подачу, а если она заблокирована, то видимую потребность по прогнозу.
                 decisionLine?.let {
                     appendColoredLine(cobText, it.text, rh.gac(context, it.colorAttr))
                     aapsLogger.debug(
                         LTag.UI,
                         "Overview COB visible decision line: base='${displayText ?: rh.gs(app.aaps.core.ui.R.string.value_unavailable_short)}' " +
-                        "decision='${it.text}' forecastRequiredCarbs=$overviewForecastRequiredCarbs"
+                            "decision='${it.text}' forecastRequiredCarbs=$overviewForecastRequiredCarbs " +
+                            "apsInsulinReq=${"%.2f".format(insulinReqFromResult(constraintsProcessed))} " +
+                            "finalForecastInsulinDeficit=${"%.2f".format(finalForecastInsulinDeficitFromResult(constraintsProcessed))} " +
+                            "treatmentRecalcPending=$treatmentRecalcPending"
                     )
                 }
 
@@ -1655,6 +1912,24 @@ class OverviewFragment : DaggerFragment(), View.OnClickListener, OnLongClickList
                 "at=${result?.minMinutes ?: 0}m target=${"%.0f".format(target)} isfCarbs=${"%.1f".format(isfMgdl)}"
         )
         return carbsReq
+    }
+
+    private fun forecastInsulinDeficitFromFinalLine(profile: Profile, tempTarget: TT?, useTT: Boolean): Double {
+        val target = forecastCarbsTargetMgdl(profile, tempTarget, useTT) ?: return 0.0
+        val now = dateUtil.now()
+        val values = freshFinalAimiPredictionValues()
+            .filter { it.timestamp >= now + T.mins(15).msecs() && it.value.isFinite() && it.value > 0.0 }
+        if (values.isEmpty()) return 0.0
+        val peak = values.maxOf { it.value }
+        val isfMgdl = currentDecisionIsfMgdl(profile, "Overview forecast insulin deficit")
+            .takeIf { it.isFinite() && it > 0.0 } ?: return 0.0
+        val deficit = if (peak > target + 10.0) Round.roundTo((peak - target) / isfMgdl, 0.01) else 0.0
+        aapsLogger.debug(
+            LTag.UI,
+            "Overview forecast insulin deficit from AIMI_FINAL: deficit=${"%.2f".format(deficit)} " +
+                "peak=${"%.0f".format(peak)} target=${"%.0f".format(target)} isf=${"%.1f".format(isfMgdl)}"
+        )
+        return deficit
     }
 
     private fun loopForecastCarbsReq(now: Long, caller: String): Int {

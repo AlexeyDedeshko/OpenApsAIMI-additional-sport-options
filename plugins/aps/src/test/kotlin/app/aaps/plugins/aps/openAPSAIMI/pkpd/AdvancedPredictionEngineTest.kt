@@ -250,6 +250,45 @@ class AdvancedPredictionEngineTest {
     }
 
     @Test
+    fun `balanced meal forecast does not treat observed carb impact as fast sugar`() {
+        val profile = mockk<OapsProfileAimi>(relaxed = true)
+        every { profile.carb_ratio } returns 7.5
+        every { profile.peakTime } returns 76.0
+
+        val now = System.currentTimeMillis()
+        val freshMealBolus = Array(49) { index ->
+            IobTotal(
+                time = now + index * 5 * 60_000L,
+                iob = (2.55 - index * 0.045).coerceAtLeast(0.0),
+                activity = (index * 0.00045).coerceAtMost(0.018)
+            )
+        }
+
+        val forecast = AdvancedPredictionEngine.predict(
+            currentBG = 104.0,
+            iobArray = freshMealBolus,
+            finalSensitivity = 70.0,
+            cobG = 29.0,
+            profile = profile,
+            selectedFoodType = "balanced",
+            carbSensitivityMgdlPerGram = 70.0 / 7.5,
+            delta = 1.0,
+            plannedSmbU = 0.0,
+            plannedRateUph = 0.80,
+            profileBasalUph = 0.80,
+            plannedDurationMin = 30,
+            observedCarbImpactMgdlPer5m = 35.0,
+            remainingCiPeakMgdlPer5m = 35.0,
+            explicitCarbEntry = true,
+            targetBG = 117.0,
+            horizonMinutes = 120
+        )
+
+        assertTrue(forecast[1] < 125.0)
+        assertTrue((forecast.maxOrNull() ?: 401.0) < 220.0)
+    }
+
+    @Test
     fun `activity boosted insulin sensitivity does not amplify carb effect when csf override is provided`() {
         val profile = mockk<OapsProfileAimi>(relaxed = true)
         every { profile.carb_ratio } returns 10.0

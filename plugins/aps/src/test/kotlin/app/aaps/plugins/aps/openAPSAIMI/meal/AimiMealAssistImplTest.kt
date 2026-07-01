@@ -170,6 +170,96 @@ class AimiMealAssistImplTest {
     }
 
     @Test
+    fun `fresh meal top up is not zeroed by bolus from the same active meal`() {
+        val now = System.currentTimeMillis()
+        val firstMealInput = baseInput(
+            timestamp = now,
+            carbs = 30,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = 3.0,
+            wizardInsulinFromCarbs = 3.0,
+            selectedFoodType = "balanced"
+        )
+        sut.activate(firstMealInput, sut.evaluate(firstMealInput))
+
+        val topUpInput = baseInput(
+            timestamp = now + 60_000L,
+            carbs = 15,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = -1.5,
+            wizardInsulinFromCarbs = 1.5,
+            selectedFoodType = "balanced",
+            bolusIob = 3.0,
+            bg = 140.0,
+            delta = 0.0
+        )
+
+        val decision = sut.evaluate(topUpInput)
+
+        assertEquals(1.45, decision.recommendedBolus, 0.0)
+    }
+
+    @Test
+    fun `old meal top up still respects existing bolus iob`() {
+        val now = System.currentTimeMillis()
+        val firstMealInput = baseInput(
+            timestamp = now - 25 * 60_000L,
+            carbs = 30,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = 3.0,
+            wizardInsulinFromCarbs = 3.0,
+            selectedFoodType = "balanced"
+        )
+        sut.activate(firstMealInput, sut.evaluate(firstMealInput))
+
+        val topUpInput = baseInput(
+            timestamp = now,
+            carbs = 15,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = -1.5,
+            wizardInsulinFromCarbs = 1.5,
+            selectedFoodType = "balanced",
+            bolusIob = 3.0,
+            bg = 140.0,
+            delta = 0.0
+        )
+
+        val decision = sut.evaluate(topUpInput)
+
+        assertEquals(0.0, decision.recommendedBolus, 0.0)
+    }
+
+    @Test
+    fun `fresh meal top up credit is blocked when glucose is below target and falling`() {
+        val now = System.currentTimeMillis()
+        val firstMealInput = baseInput(
+            timestamp = now,
+            carbs = 30,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = 3.0,
+            wizardInsulinFromCarbs = 3.0,
+            selectedFoodType = "balanced"
+        )
+        sut.activate(firstMealInput, sut.evaluate(firstMealInput))
+
+        val topUpInput = baseInput(
+            timestamp = now + 60_000L,
+            carbs = 20,
+            requiredCarbs = 0,
+            wizardCalculatedBolus = -1.7,
+            wizardInsulinFromCarbs = 3.33,
+            selectedFoodType = "balanced",
+            bolusIob = 2.4,
+            bg = 53.0,
+            delta = -2.0
+        )
+
+        val decision = sut.evaluate(topUpInput)
+
+        assertEquals(0.0, decision.recommendedBolus, 0.0)
+    }
+
+    @Test
     fun `protective carbs are handled but later unbolused extra carbs remain available for COB insulin`() {
         val now = System.currentTimeMillis()
         val protectiveInput = baseInput(

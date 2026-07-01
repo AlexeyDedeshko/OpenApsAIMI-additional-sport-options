@@ -31,6 +31,7 @@ import app.aaps.core.data.model.TT
 import app.aaps.core.data.time.T
 import app.aaps.core.interfaces.aps.AimiMealAssist
 import app.aaps.core.interfaces.aps.Loop
+import app.aaps.core.interfaces.aps.RT
 import app.aaps.core.interfaces.configuration.Config
 import app.aaps.core.interfaces.constraints.ConstraintsChecker
 import app.aaps.core.interfaces.db.PersistenceLayer
@@ -670,7 +671,57 @@ class WizardDialog : DaggerDialogFragment() {
                 binding.cobInsulin.text = ""
             }
 
-            if (wizard.calculatedTotalInsulin > 0.0 || carbsAfterConstraint > 0.0) {
+            val manualWizardInput = carbsAfterConstraint > 0.0 ||
+                abs(correction) > 0.01 ||
+                carbTime != 0 ||
+                (usePercentage && abs(percentageCorrection.toDouble() - preferences.get(IntKey.OverviewBolusPercentage).toDouble()) > 0.01)
+            val apsInsulinReq = apsInsulinReqFromLoop()
+            val apsForecastInsulinDeficit = maxOf(apsForecastInsulinDeficitFromLoop(), forecastInsulinDeficitFromFinalLine(specificProfile, tempTarget, binding.ttCheckbox.isChecked))
+            if (config.APS && !manualWizardInput && (loop.lastRun?.constraintsProcessed != null || apsForecastInsulinDeficit > 0.01)) {
+                val useForecastCorrection = apsForecastInsulinDeficit > apsInsulinReq + 0.1
+                val forecastCorrectionWizard = if (useForecastCorrection) {
+                    bolusWizardProvider.get().doCalc(
+                        specificProfile,
+                        profileName,
+                        tempTarget,
+                        0,
+                        0.0,
+                        0.0,
+                        apsForecastInsulinDeficit,
+                        preferences.get(IntKey.OverviewBolusPercentage),
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        binding.alarm.isChecked,
+                        "AIMI_FORECAST_DEFICIT",
+                        0,
+                        selectedFoodType ?: "balanced",
+                        usePercentage = false,
+                        totalPercentage = 100.0,
+                        skipAimiMealAssist = true
+                    )
+                } else null
+                if (forecastCorrectionWizard != null) this@WizardDialog.wizard = forecastCorrectionWizard
+                val visibleInsulin = if (useForecastCorrection) (forecastCorrectionWizard?.insulinAfterConstraints ?: apsForecastInsulinDeficit) else apsInsulinReq
+                val insulinText = rh.gs(app.aaps.core.ui.R.string.format_insulin_units, visibleInsulin)
+                    .formatColor(context, rh, app.aaps.core.ui.R.attr.bolusColor)
+                binding.total.text = HtmlHelper.fromHtml(if (useForecastCorrection) "Потребность по прогнозу: $insulinText" else "APS хочет: $insulinText")
+                binding.totalReason.visibility = View.VISIBLE
+                binding.totalReason.text =
+                    if (useForecastCorrection)
+                        "Это ручная correction-доза по финальному прогнозу. Автоподача APS может быть заблокирована, но OK подаст эту дозу через обычные ограничения болюса."
+                    else if (apsInsulinReq > 0.01)
+                        "Это автоматическое решение APS. Кнопка OK скрыта, потому что ручной калькулятор мог бы выполнить другой болюс."
+                    else
+                        "APS сейчас не хочет подавать дополнительный инсулин."
+                val correctionAfterConstraints = forecastCorrectionWizard?.insulinAfterConstraints ?: 0.0
+                binding.okcancel.ok.visibility = if (correctionAfterConstraints > 0.01) View.VISIBLE else View.INVISIBLE
+                binding.okcancel.ok.isEnabled = correctionAfterConstraints > 0.01
+            } else if (wizard.calculatedTotalInsulin > 0.0 || carbsAfterConstraint > 0.0) {
                 val insulinText =
                     if (wizard.calculatedTotalInsulin > 0.0) rh.gs(app.aaps.core.ui.R.string.format_insulin_units, wizard.calculatedTotalInsulin)
                         .formatColor(context, rh, app.aaps.core.ui.R.attr.bolusColor) else ""
@@ -703,6 +754,19 @@ class WizardDialog : DaggerDialogFragment() {
             calculatedCorrection = wizard.calculatedCorrection
         }
 
+    }
+
+    private fun apsInsulinReqFromLoop(): Double {
+        val value = loop.lastRun?.constraintsProcessed?.json()?.optDouble("insulinReq", 0.0) ?: 0.0
+        return if (java.lang.Double.isFinite(value)) value else 0.0
+    }
+
+    private fun apsForecastInsulinDeficitFromLoop(): Double {
+        val result = loop.lastRun?.constraintsProcessed
+        val rawValue = (result?.rawData() as? RT)?.finalForecastInsulinDeficit
+        val jsonValue = result?.json()?.optDouble("finalForecastInsulinDeficit", 0.0) ?: 0.0
+        val value = rawValue ?: jsonValue
+        return if (java.lang.Double.isFinite(value)) value else 0.0
     }
 
     private fun updateCarbTimingHint(
@@ -761,6 +825,33 @@ class WizardDialog : DaggerDialogFragment() {
                 "isfCarbs=${"%.1f".format(profile.getIsfMgdlForCarbs(now, "Wizard forecast carbs log", config, processedDeviceStatusData))}"
         )
         return carbsReq
+    }
+
+    private fun forecastInsulinDeficitFromFinalLine(profile: Profile, tempTarget: TT?, useTT: Boolean): Double {
+        val now = dateUtil.now()
+        val targetMgdl = forecastCarbsTargetMgdl(profile, tempTarget, useTT) ?: return 0.0
+        val values = overviewData.finalAimiPredictionValues
+            .filter { it.timestamp >= now + T.mins(15).msecs() && it.value.isFinite() && it.value > 0.0 }
+        if (values.isEmpty()) return 0.0
+        val peak = values.maxOf { it.value }
+        val isfMgdl = currentDecisionIsfMgdl(profile, "Wizard forecast insulin deficit")
+            .takeIf { it.isFinite() && it > 0.0 } ?: return 0.0
+        val deficit = if (peak > targetMgdl + 10.0) Round.roundTo((peak - targetMgdl) / isfMgdl, 0.01) else 0.0
+        aapsLogger.debug(
+            LTag.APS,
+            "Wizard forecast insulin deficit from AIMI_FINAL: deficit=${"%.2f".format(deficit)} " +
+                "peak=${"%.0f".format(peak)} target=${"%.0f".format(targetMgdl)} isf=${"%.1f".format(isfMgdl)}"
+        )
+        return deficit
+    }
+
+    private fun currentDecisionIsfMgdl(profile: Profile, caller: String): Double {
+        val decisionIsf = when {
+            config.APS        -> loop.lastRun?.request?.variableSens
+            config.AAPSCLIENT -> processedDeviceStatusData.getAPSResult()?.variableSens
+            else              -> null
+        }?.takeIf { it.isFinite() && it > 0.0 }
+        return decisionIsf ?: profile.getIsfMgdl(caller)
     }
 
     private fun loopForecastCarbsReq(now: Long, caller: String): Int {

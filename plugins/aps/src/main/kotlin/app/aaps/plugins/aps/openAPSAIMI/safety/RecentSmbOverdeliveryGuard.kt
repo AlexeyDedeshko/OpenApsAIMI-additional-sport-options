@@ -114,11 +114,14 @@ internal object RecentSmbOverdeliveryGuard {
             input.bg < 170.0 &&
             input.iobU >= max(5.0, highBgLimit * 2.5)
         val forecastNotSafelyHigh = input.eventualBg.isFinite() && input.eventualBg < 180.0
+        val clearlyHighForecast = input.bg >= 220.0 &&
+            input.eventualBg.isFinite() &&
+            input.eventualBg >= input.targetBg + 60.0
         val nightLoaded = input.nightNoMeal &&
             input.iobU >= max(3.0, highBgLimit * 1.25) &&
             input.bg < 260.0 &&
             (
-                proposed >= 0.3 ||
+                (proposed > 0.3 && !clearlyHighForecast) ||
                     recent30After >= max(1.5, highBgLimit * 0.6) ||
                     forecastNotSafelyHigh
                 )
@@ -168,7 +171,7 @@ internal object RecentSmbOverdeliveryGuard {
         val forecastBelowTarget = forecastFloor <= max(70.0, target - 15.0)
         val forecastSevereLow = forecastFloor <= 80.0
         val hardIobPressure = input.iobU >= max(4.0, highBgLimit * 2.0)
-        val moderateBg = input.bg < 220.0
+        val moderateBg = input.bg < if (input.nightNoMeal) 260.0 else 220.0
         val recentPressure = input.recentSmb30U >= 0.5 || input.proposedSmbU > 0.0
 
         if (!moderateBg) return null

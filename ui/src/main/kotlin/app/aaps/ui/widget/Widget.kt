@@ -16,8 +16,10 @@ import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.RemoteViews
 import app.aaps.core.data.model.GlucoseUnit
+import app.aaps.core.interfaces.aps.APSResult
 import app.aaps.core.interfaces.aps.IobTotal
 import app.aaps.core.interfaces.aps.Loop
+import app.aaps.core.interfaces.aps.RT
 import app.aaps.core.interfaces.configuration.Config
 import app.aaps.core.interfaces.constraints.ConstraintsChecker
 import app.aaps.core.interfaces.db.PersistenceLayer
@@ -194,10 +196,69 @@ class Widget : AppWidgetProvider() {
     }
 
     private fun updateTemporaryBasal(views: RemoteViews) {
-        views.setTextViewText(R.id.base_basal, overviewData.temporaryBasalText())
-        views.setTextColor(R.id.base_basal, processedTbrEbData.getTempBasalIncludingConvertedExtended(dateUtil.now())?.let { rh.gc(app.aaps.core.ui.R.color.widget_basal) }
-            ?: rh.gc(app.aaps.core.ui.R.color.white))
-        views.setImageViewResource(R.id.base_basal_icon, overviewData.temporaryBasalIcon())
+        val apsOverview = apsInsulinDeliveryOverview(loop.lastRun?.constraintsProcessed)
+        if (apsOverview != null || config.APS) {
+            val display = apsOverview ?: WidgetApsInsulinOverview(
+                label = "Н/Д",
+                color = rh.gc(app.aaps.core.ui.R.color.white),
+                icon = app.aaps.core.ui.R.drawable.ic_shield
+            )
+            views.setTextViewText(R.id.base_basal, display.label)
+            views.setTextColor(R.id.base_basal, display.color)
+            views.setImageViewResource(R.id.base_basal_icon, display.icon)
+        } else {
+            views.setTextViewText(R.id.base_basal, overviewData.temporaryBasalText())
+            views.setTextColor(R.id.base_basal, processedTbrEbData.getTempBasalIncludingConvertedExtended(dateUtil.now())?.let { rh.gc(app.aaps.core.ui.R.color.widget_basal) }
+                ?: rh.gc(app.aaps.core.ui.R.color.white))
+            views.setImageViewResource(R.id.base_basal_icon, overviewData.temporaryBasalIcon())
+        }
+    }
+
+    private data class WidgetApsInsulinOverview(
+        val label: String,
+        val color: Int,
+        val icon: Int
+    )
+
+    private fun insulinReqFromResult(result: APSResult?): Double {
+        val value = result?.json()?.optDouble("insulinReq", 0.0) ?: 0.0
+        return if (java.lang.Double.isFinite(value)) value else 0.0
+    }
+
+    private fun finalForecastInsulinDeficitFromResult(result: APSResult?): Double {
+        val rawValue = (result?.rawData() as? RT)?.finalForecastInsulinDeficit
+        val jsonValue = result?.json()?.optDouble("finalForecastInsulinDeficit", 0.0) ?: 0.0
+        val value = rawValue ?: jsonValue
+        return if (java.lang.Double.isFinite(value)) value else 0.0
+    }
+
+    private fun apsInsulinDeliveryOverview(result: APSResult?): WidgetApsInsulinOverview? {
+        result ?: return null
+
+        val insulinReq = insulinReqFromResult(result)
+        val finalForecastInsulinDeficit = finalForecastInsulinDeficitFromResult(result)
+        val waitingForSmbInterval = isWaitingForSmbInterval(result.reason)
+        val hasLimitedInsulin = finalForecastInsulinDeficit > insulinReq + 0.1
+        return WidgetApsInsulinOverview(
+            label = when {
+                waitingForSmbInterval -> "ПАУЗА"
+                hasLimitedInsulin -> "ЛИМИТ"
+                insulinReq > 0.01   -> "APS"
+                else                -> "СТОП"
+            },
+            color = when {
+                hasLimitedInsulin -> rh.gc(app.aaps.core.ui.R.color.widget_ribbonWarning)
+                insulinReq > 0.01   -> rh.gc(app.aaps.core.ui.R.color.widget_basal)
+                else                -> rh.gc(app.aaps.core.ui.R.color.white)
+            },
+            icon = app.aaps.core.ui.R.drawable.ic_shield
+        )
+    }
+
+    private fun isWaitingForSmbInterval(reason: String): Boolean {
+        val lower = reason.lowercase()
+        return lower.contains("waiting") && lower.contains("microbolus") ||
+            lower.contains("слишком рано после прошлого smb")
     }
 
     private fun updateExtendedBolus(views: RemoteViews) {

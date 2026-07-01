@@ -46,6 +46,8 @@ data class RT(
     var IOB: Double? = null,
     var variable_sens: Double? = null,
     var isfMgdlForCarbs: Double? = null, // used to pass to AAPS client
+    var finalForecastInsulinDeficit: Double? = null,
+    var finalForecastInsulinDeficitMinutes: Int? = null,
     @Serializable(with = StringBuilderSerializer::class)
     var aimilog: StringBuilder = StringBuilder(),
 

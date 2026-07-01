@@ -25,7 +25,9 @@ import android.widget.ArrayAdapter
 import android.widget.CompoundButton
 import androidx.fragment.app.FragmentManager
 import app.aaps.core.data.configuration.Constants
+import app.aaps.core.data.model.GV
 import app.aaps.core.data.model.GlucoseUnit
+import app.aaps.core.data.model.SourceSensor
 import app.aaps.core.data.model.TE
 import app.aaps.core.data.model.TT
 import app.aaps.core.data.time.T
@@ -808,7 +810,7 @@ class WizardDialog : DaggerDialogFragment() {
         if (finalForecastPendingTreatmentRecalculation(now, "Wizard forecast carbs")) return 0
         val targetMgdl = forecastCarbsTargetMgdl(profile, tempTarget, useTT) ?: return 0
         val result = ForecastCarbsCalculator.fromFinalForecast(
-            predictions = overviewData.finalAimiPredictionValues,
+            predictions = freshFinalAimiPredictionValues(),
             now = now,
             targetMgdl = targetMgdl,
             isfMgdl = profile.getIsfMgdlForCarbs(now, "Wizard forecast carbs", config, processedDeviceStatusData),
@@ -830,7 +832,7 @@ class WizardDialog : DaggerDialogFragment() {
     private fun forecastInsulinDeficitFromFinalLine(profile: Profile, tempTarget: TT?, useTT: Boolean): Double {
         val now = dateUtil.now()
         val targetMgdl = forecastCarbsTargetMgdl(profile, tempTarget, useTT) ?: return 0.0
-        val values = overviewData.finalAimiPredictionValues
+        val values = freshFinalAimiPredictionValues()
             .filter { it.timestamp >= now + T.mins(15).msecs() && it.value.isFinite() && it.value > 0.0 }
         if (values.isEmpty()) return 0.0
         val minForecast = values.minOf { it.value }
@@ -1056,6 +1058,39 @@ class WizardDialog : DaggerDialogFragment() {
         lastForecastRequiredCarbsOverviewRefresh = forecastRequiredCarbs
         rxBus.send(EventRefreshOverview("WizardDialog forecast carbs", now = true))
     }
+
+    private fun freshFinalAimiPredictionValues(): List<GV> {
+        val values = overviewData.finalAimiPredictionValues
+        if (values.isEmpty()) return values
+        val latestBg = overviewData.bgReadingsArray
+            .filter { it.value.isFinite() && it.value > 0.0 }
+            .maxByOrNull { it.timestamp }
+            ?: return values
+        val finalLine = values.filter { it.sourceSensor.isFinalAimiDisplaySource() }
+        if (finalLine.isEmpty()) return values
+        val closest = finalLine.minByOrNull { abs(it.timestamp - latestBg.timestamp) } ?: return values
+        val anchorMismatch =
+            latestBg.timestamp >= closest.timestamp &&
+                abs(closest.timestamp - latestBg.timestamp) <= T.mins(6).msecs() &&
+                abs(closest.value - latestBg.value) >= 12.0
+        if (anchorMismatch) {
+            aapsLogger.debug(
+                LTag.APS,
+                "Wizard hiding stale displayed AIMI prediction: bg=${dateUtil.timeString(latestBg.timestamp)} " +
+                    "${"%.0f".format(latestBg.value)} anchor=${dateUtil.timeString(closest.timestamp)} ${"%.0f".format(closest.value)}"
+            )
+            return emptyList()
+        }
+        return values
+    }
+
+    private fun SourceSensor.isFinalAimiDisplaySource(): Boolean =
+        this == SourceSensor.AIMI_FINAL_PREDICTION ||
+            this == SourceSensor.AIMI_ACTIVITY_WAITING_PREDICTION ||
+            this == SourceSensor.AIMI_ACTIVITY_ACTIVE_PREDICTION ||
+            this == SourceSensor.AIMI_ACTIVITY_TAIL_PREDICTION ||
+            this == SourceSensor.AIMI_BEFORE_DECISION_PREDICTION ||
+            this == SourceSensor.AIMI_FINAL_PREDICTION_STALE
 
     private data class CarbTimingSuggestion(
         val actionText: String,
@@ -1320,7 +1355,7 @@ class WizardDialog : DaggerDialogFragment() {
     }
 
     private fun finalAimiTimingForecastPoints(now: Long): List<TimingForecastPoint> =
-        overviewData.finalAimiPredictionValues
+        freshFinalAimiPredictionValues()
             .filter { it.timestamp >= now - T.mins(2).msecs() }
             .sortedBy { it.timestamp }
             .map {

@@ -679,7 +679,13 @@ class WizardDialog : DaggerDialogFragment() {
                 (usePercentage && abs(percentageCorrection.toDouble() - preferences.get(IntKey.OverviewBolusPercentage).toDouble()) > 0.01)
             val apsInsulinReq = apsInsulinReqFromLoop()
             val apsForecastInsulinDeficit = maxOf(apsForecastInsulinDeficitFromLoop(), forecastInsulinDeficitFromFinalLine(specificProfile, tempTarget, binding.ttCheckbox.isChecked))
-            if (config.APS && !manualWizardInput && (loop.lastRun?.constraintsProcessed != null || apsForecastInsulinDeficit > 0.01)) {
+            if (!manualWizardInput && wizard.forecastRequiredCarbs > 0) {
+                binding.total.text = HtmlHelper.fromHtml(rh.gs(R.string.missing_carbs, wizard.forecastRequiredCarbs).formatColor(context, rh, app.aaps.core.ui.R.attr.carbsColor))
+                binding.totalReason.visibility = View.VISIBLE
+                binding.totalReason.text = "Финальный прогноз ниже цели: калькулятор показывает ту же потребность в углеводах, что и главный экран."
+                binding.okcancel.ok.visibility = View.INVISIBLE
+                binding.okcancel.ok.isEnabled = false
+            } else if (config.APS && !manualWizardInput && (loop.lastRun?.constraintsProcessed != null || apsForecastInsulinDeficit > 0.01)) {
                 val useForecastCorrection = apsForecastInsulinDeficit > apsInsulinReq + 0.1
                 val forecastCorrectionWizard = if (useForecastCorrection) {
                     bolusWizardProvider.get().doCalc(

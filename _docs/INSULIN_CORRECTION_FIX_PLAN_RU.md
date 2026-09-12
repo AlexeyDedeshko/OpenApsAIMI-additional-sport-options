@@ -1,7 +1,7 @@
 # AAPS / AIMI: проект и план исправления рекомендаций инсулина
 
 Дата фиксации плана: 12 сентября 2026, Москва.
-Статус: план. При создании этого документа код приложения, настройки и устройство не изменялись. Исправление по этому плану пока не реализовано и не установлено.
+Статус: Git-подготовка завершена; исправление остается планом. Текущее состояние сохранено в `master`, опубликовано на GitHub, создана новая рабочая ветка. На подготовительном шаге код расчета, настройки и устройство не изменялись. Исправление по этому плану пока не реализовано и не установлено.
 
 ## Где находится программа
 
@@ -15,22 +15,24 @@
 
 - Основной репозиторий, `origin`: [gordibraun/OpenApsAIMI-additional-sport-options](https://github.com/gordibraun/OpenApsAIMI-additional-sport-options).
 - Исходный репозиторий, `upstream`: [MTR93600/OpenApsAIMI](https://github.com/MTR93600/OpenApsAIMI).
-- Текущая ветка: `case-review-mvp`. Планируем продолжать здесь, без переключения ветки.
-- Отслеживаемая ветка: `origin/case-review-mvp`.
-- Текущий коммит: `0ae0c51334005ea1a5d2e32303ff43c24da2e4aa`.
-- Сообщение коммита: `показал недостающие углеводы в Wizard поверх APS`.
-- Дата коммита: 1 июля 2026, 12:22:44 +03:00.
-- Git показывает опережение на 4 коммита относительно локально сохраненного состояния `origin`. Проверка сервера через `fetch` в этой задаче не выполнялась.
+- Основная ветка: `master`; это подтверждено значением `HEAD` на сервере `origin`. `origin` является именем удаленного репозитория, а не ветки.
+- Новая рабочая ветка: `codex/unified-insulin-correction`, созданная от обновленной `master`.
+- Отслеживаемая ветка: `origin/codex/unified-insulin-correction`.
+- Контрольный коммит до исправлений: `30d68bbff32dc7e8bc5fed8c918e00f584990077`.
+- Сообщение контрольного коммита: `Сохранено текущее состояние AIMI перед объединением веток`.
+- `case-review-mvp` объединена в `master` переносом указателя вперед (`--ff-only`), без переписывания истории. Обе оставленные ветки опубликованы на `origin`; состояние сервера проверено 12 сентября 2026.
 - Локальные данные Git находятся в `.git` в корне проекта.
 
-До создания документа уже были незакоммиченные изменения в четырех файлах:
+До создания документа уже были изменения в четырех файлах; все они включены в контрольный коммит без отката:
 
 1. `plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/DetermineBasalAIMI2.kt`
 2. `plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/KalmanFilter.kt`
 3. `plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/OpenAPSAIMIPlugin.kt`
 4. `plugins/aps/src/test/kotlin/app/aaps/plugins/aps/openAPSAIMI/KalmanFilterTest.kt`
 
-Эти изменения необходимо сохранить и учитывать. Указанный коммит не описывает полностью текущее рабочее состояние. Создание документа не является коммитом или резервной копией проекта; `commit`, `push`, сброс файлов и установка приложения не выполнялись.
+Исходные ветки перед удалением сохранены вместе с полной Git-историей в архиве `/Users/alexeydedeshko/Downloads/aaps-git-backups/20260912-branch-cleanup/all-refs.bundle`. Архив создан через `git bundle create --all` и успешно проверен через `git bundle verify`. Это резервная копия Git-истории, а не медицинских выгрузок или игнорируемых файлов.
+
+Локально удалены `backup-fixes-20260404`, `backup-master-20260404`, `case-review-mvp` и `combo-wear-test`. На `origin` удалены все три старые ветки, которые там существовали. Остались только `master` и `codex/unified-insulin-correction`. Ветки чужого репозитория `upstream` и файлы дополнительных рабочих копий не удалялись; рабочая копия `combo-wear-test` оставлена на прежнем коммите в состоянии detached HEAD.
 
 ## Что установлено
 
@@ -85,7 +87,7 @@
 | Файл | Что проверяем и меняем при необходимости |
 | --- | --- |
 | [WizardDialog.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/ui/src/main/kotlin/app/aaps/ui/dialogs/WizardDialog.kt) | Путь `AIMI_FORECAST_DEFICIT`, собственная формула по пику, актуальность рекомендации, отображение и подтверждение. |
-| [DetermineBasalAIMI2.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/DetermineBasalAIMI2.kt) | Формирование `finalForecastInsulinDeficit`, смысл конечного решения и согласованность прогноза. Здесь уже есть незакоммиченные изменения. |
+| [DetermineBasalAIMI2.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/DetermineBasalAIMI2.kt) | Формирование `finalForecastInsulinDeficit`, смысл конечного решения и согласованность прогноза. Предыдущие изменения сохранены в контрольном коммите. |
 | [RT.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/core/interfaces/src/main/kotlin/app/aaps/core/interfaces/aps/RT.kt) | Контракт результата расчета: потребность, допустимая коррекция и актуальность входного состояния. |
 | [BolusWizard.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/core/objects/src/main/kotlin/app/aaps/core/objects/wizard/BolusWizard.kt) | Существующая защита подтверждения, учет лечения, сохранение расчета еды и однократного учета IOB. |
 | [AimiMealAssistImpl.kt](/Users/alexeydedeshko/StudioProjects/OpenApsAIMI-additional-sport-options/plugins/aps/src/main/kotlin/app/aaps/plugins/aps/openAPSAIMI/meal/AimiMealAssistImpl.kt) | Жизненный цикл отметки о принятом лечении и ожидание его учета в расчете. |

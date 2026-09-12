@@ -42,18 +42,41 @@ class KalmanFilterTest {
         
         val calculator = KalmanISFCalculator(tddCalculator, preferences, logger)
         
-        // Test with BG 100 (factor 0.9)
+        // Test with BG 100. Glucose is represented once by the logarithmic formula.
         // TDD 50.
-        // Raw ISF = (1800 / (50 * ln(100/75 + 1))) * 0.9
+        // Raw ISF = 1800 / (50 * ln(100/75 + 1))
         // ln(1.33 + 1) = ln(2.33) approx 0.84
         // 1800 / (50 * 0.84) = 1800 / 42 = 42.8
-        // 42.8 * 0.9 = 38.5
         
         val isf = calculator.calculateISF(100.0, 0.0, 0.0)
         
-        // Initial state is 15.0.
-        // It will move towards 38.5 but not reach it immediately due to filter.
-        assertTrue(isf > 15.0)
-        assertTrue(isf < 40.0)
+        assertTrue(isf > 40.0)
+        assertTrue(isf < 45.0)
+    }
+
+    @Test
+    fun `rapid hyperglycaemia does not collapse ISF`() {
+        val tddCalculator = mockk<TddCalculator>(relaxed = true)
+        val preferences = mockk<Preferences>(relaxed = true)
+        val logger = mockk<AAPSLogger>(relaxed = true)
+        every { preferences.get(DoubleKey.OApsAIMITDD7) } returns 50.0
+        val calculator = KalmanISFCalculator(tddCalculator, preferences, logger)
+
+        val incidentSequence = listOf(
+            Triple(137.0, 1.3, 1.3),
+            Triple(143.0, 4.0, 4.0),
+            Triple(154.0, 9.3, 9.3),
+            Triple(171.0, 15.0, 15.0),
+            Triple(189.0, 9.0, 9.0),
+            Triple(208.0, 15.7, 15.7),
+            Triple(219.0, 13.7, 13.7)
+        )
+
+        val estimates = incidentSequence.map { (bg, delta, predicted) ->
+            calculator.calculateISF(bg, delta, predicted)
+        }
+
+        assertTrue("ISF must not collapse during a rapid rise: $estimates", estimates.all { it > 20.0 })
+        assertTrue("Final ISF must remain physiologically anchored: ${estimates.last()}", estimates.last() > 25.0)
     }
 }

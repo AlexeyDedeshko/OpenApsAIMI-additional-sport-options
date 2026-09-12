@@ -4331,9 +4331,9 @@ class DetermineBasalaimiSMB2 @Inject constructor(
         //         sens.toFloat()
         //     }
         // }
-        var newVariableSensitivity = sens // On part de la sensibilité de base (fusionnée)
+        this.variableSensitivity = sens.toFloat()
 
-// --- ✅ ETAPE 2: NOUVELLE LOGIQUE PROACTIVE BASÉE SUR LE PAI ---
+// PAI describes insulin activity timing. It must not alter physiological sensitivity.
         consoleLog.add("PAI Logic: Base ISF=${"%.1f".format(sens)}")
 
 // Scénario 1 : Montée glycémique détectée
@@ -4356,9 +4356,10 @@ class DetermineBasalaimiSMB2 @Inject constructor(
                 }
                 else -> 1.0 // Cas par défaut
             }
-            newVariableSensitivity *= urgencyFactor
             if (urgencyFactor != 1.0) {
-                consoleLog.add("PAI: Urgency factor ${"%.2f".format(urgencyFactor)} applied. New ISF=${"%.1f".format(newVariableSensitivity)}")
+                consoleLog.add(
+                    "PAI: timing signal ${"%.2f".format(urgencyFactor)}; ISF unchanged=${"%.1f".format(sens)}"
+                )
             }
         }
 
@@ -4366,14 +4367,9 @@ class DetermineBasalaimiSMB2 @Inject constructor(
         if (delta in -1.0..1.5 && bg > 140) {
             // Si l'activité de l'insuline va chuter, on risque un rebond.
             if (iobActivityIn30Min < iobActivityNow * 0.8) {
-                consoleLog.add("PAI: BG high/stable but IOB will fade. Anti-rebound.")
-                newVariableSensitivity *= 0.95 // On est 5% plus agressif
+                consoleLog.add("PAI: BG high/stable and IOB will fade; timing signal only, ISF unchanged.")
             }
         }
-
-        this.variableSensitivity = newVariableSensitivity.toFloat()
-
-// --- FIN DE LA NOUVELLE LOGIQUE ---
 
         // --- 🏃 ACTIVITY MANAGER INTEGRATION ---
         val sensitivityBeforeActivity = variableSensitivity.toDouble()

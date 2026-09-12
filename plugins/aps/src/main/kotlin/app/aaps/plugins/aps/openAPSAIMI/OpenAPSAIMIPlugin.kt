@@ -328,8 +328,9 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
     }
     private fun estimateKalmanTrustFromDelta(delta: Double?): Double {
         val d = kotlin.math.abs(delta ?: 0.0)
-        // 0..10 mg/dL/5min -> 0.1..0.9
-        return (d / 10.0).coerceIn(0.1, 0.9)
+        // A fast glucose movement makes an instantaneous sensitivity estimate less
+        // trustworthy. Keep the profile/TDD anchor dominant during steep changes.
+        return (0.8 - d * 0.065).coerceIn(0.15, 0.8)
     }
 
     // ISF basé TDD (ancre 1800/TDD 24h) avec garde-fous
@@ -341,33 +342,6 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
         val anchored = if (tdd24 > 0.1) 1800.0 / tdd24 else profileIsf
         return anchored.coerceIn(5.0, 400.0)
     }
-    private fun dynamicDeltaCorrectionFactor(delta: Double?, predicted: Double?, bg: Double?): Double {
-        if (delta == null || predicted == null || bg == null) return 1.0
-        val combinedDelta = (delta + predicted) / 2.0
-        return when {
-            // En cas d'hypoglycémie (delta négatif), on augmente progressivement l'ISF
-            combinedDelta < 0 -> {
-                val factor = Math.exp(0.15 * Math.abs(combinedDelta))
-                factor.coerceAtMost(1.4)
-            }
-            // En hyperglycémie : si BG est > 130, on applique une réduction progressive
-            bg > 110.0        -> {
-                // On réduit d’un certain pourcentage (ici jusqu’à 30%) en fonction de BG
-                val bgReduction = 1.0 - ((bg - 110.0) / (200.0 - 110.0)) * 0.5
-                // On combine ce facteur avec la réponse exponentielle basée sur combinedDelta si nécessaire
-                if (combinedDelta > 10) {
-                    // Si le delta est important, on accentue la réduction avec une réponse exponentielle
-                    val expFactor = Math.exp(-0.3 * (combinedDelta - 10))
-                    minOf(expFactor, bgReduction)
-                } else {
-                    bgReduction
-                }
-            }
-
-            else              -> 1.0
-        }
-    }
-
     private fun getRecentDeltas(): List<Double> {
         val data = iobCobCalculator.ads.getBucketedDataTableCopy() ?: return emptyList()
         val smb = glucoseStatusCalculatorAimi.getGlucoseStatusData(true) ?: return emptyList()
@@ -407,70 +381,65 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
         val currentDelta = glucoseStatusProvider.glucoseStatusData?.delta
         val recentDeltas = getRecentDeltas()
         val predictedDelta = predictedDelta(recentDeltas)
+        val profileIsf = profileFunction.getProfile()?.getProfileIsfMgdl() ?: 20.0
+        val blended = computeFreshVariableIsf(glucose, currentDelta, predictedDelta, profileIsf, timestamp)
 
-        // 2) facteur historique (comme avant)
-        val dynamicFactor = dynamicDeltaCorrectionFactor(currentDelta, predictedDelta, bg)
+        val key = timestamp - timestamp % T.mins(30).msecs() + glucose.toLong()
+        if (dynIsfCache.size() > 1000) dynIsfCache.clear()
+        dynIsfCache.put(key, blended)
 
-        // 3) ISF rapide #1 : Kalman existant
+        return "CALC" to blended
+    }
+
+    private fun computeFreshVariableIsf(
+        glucose: Double,
+        currentDelta: Double?,
+        predictedDelta: Double?,
+        profileIsf: Double,
+        nowMs: Long
+    ): Double {
         val kalmanFastIsf = kalmanISFCalculator.calculateISF(glucose, currentDelta, predictedDelta)
         aapsLogger.debug(LTag.APS, "Adaptive ISF via Kalman: $kalmanFastIsf for BG: $glucose")
 
-        // 4) ISF lent (socle) : profil/TDD fusionné + pkpdScale (inchangé)
-        val profileIsf = profileFunction.getProfile()?.getProfileIsfMgdl() ?: 20.0
         val tddIsf = tddIsf24hOr(profileIsf)
         val fusedSlowIsf = isfFusion().fused(profileIsf, tddIsf, lastPkpdScale)
         aapsLogger.debug(LTag.APS, "Fused slow ISF: $fusedSlowIsf (profile=$profileIsf, tddIsf=$tddIsf, pkpdScale=$lastPkpdScale)")
 
-        // 5) EMA TDD (stabilise l’ajustement AF)
         val tdd24 = tddCalculator.calculateDaily(-24, 0)?.totalAmount ?: tddIsf /* fallback */
         tddEma = when (val prev = tddEma) {
             null -> tdd24
             else -> prev + TDD_EMA_ALPHA * (tdd24 - prev)
         }
 
-        // 6) proxys de confiance (si variance non exposée ici)
         val kalmanTrustProxy = estimateKalmanTrustFromDelta(currentDelta)             // 0..1
         val kalmanVarProxy = (1.0 - kalmanTrustProxy).coerceIn(0.0, 1.0)             // 1-trust
         val sippConfidence = AimiUamHandler.confidenceOrZero().coerceIn(0.0, 1.0)
 
-        // 7) ISF rapide #2 : IsfAdjustmentEngine (AF ln(BG/55) + TDD-EMA + rate-limit)
         val isfAdj = isfAdjEngine.compute(
             bgKalman = glucose,
             tddEma   = (tddEma ?: tdd24),
             profileIsf = profileIsf,
             sippConfidence = sippConfidence,
             kalmanVar = kalmanVarProxy,
-            nowMs = System.currentTimeMillis()
+            nowMs = nowMs
         )
         aapsLogger.debug(LTag.APS, "Adaptive ISF via IsfAdjustmentEngine: $isfAdj (tddEma=$tddEma, sipp=$sippConfidence, var=$kalmanVarProxy)")
 
-        // 8) Combine les deux rapides par médiane robuste (résistant aux outliers)
-        val fastMedian = listOf(kalmanFastIsf, isfAdj).sorted()[1]
+        val fastCenter = (kalmanFastIsf + isfAdj) / 2.0
 
-        // 9) Blend final (socle lent vs rapide), avec rate-limit temporel de IsfBlender
-        var blended = isfBlender.blend(
+        val blended = isfBlender.blend(
             fusedIsf = fusedSlowIsf,
-            kalmanIsf = fastMedian,
+            kalmanIsf = fastCenter,
             trustFast = kalmanTrustProxy,
-            nowMs = System.currentTimeMillis()
-        )
-
-        // 10) facteur dynamique + bornes globales
-        blended *= dynamicFactor
-        blended = blended.coerceIn(5.0, 300.0)
+            nowMs = nowMs
+        ).coerceIn(5.0, 300.0)
 
         aapsLogger.debug(LTag.APS, "Final DynISF: $blended")
         aapsLogger.debug(
             LTag.APS,
             "DynISF inputs: fusedSlowIsf=$fusedSlowIsf, kalmanFastIsf=$kalmanFastIsf, isfAdj=$isfAdj, trustFast=$kalmanTrustProxy, pkpdScale=$lastPkpdScale"
         )
-
-        // 11) cache
-        val key = timestamp - timestamp % T.mins(30).msecs() + glucose.toLong()
-        if (dynIsfCache.size() > 1000) dynIsfCache.clear()
-        dynIsfCache.put(key, blended)
-
-        return "CALC" to blended
+        return blended
     }
 
 
@@ -599,7 +568,7 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
             val tddLast8to4H = tdd24HrsPerHour * 4
 // // Calcul pondéré du TDD récent pour éviter les fluctuations extrêmes
             val tddWeightedFromLast8H = ((1.2 * tdd2DaysPerHour) + (0.3 * tddLast4H) + (0.5 * tddLast8to4H)) * 3
-            var tdd = (tddWeightedFromLast8H * 0.20) + (tdd2Days * 0.50) + (tddDaily * 0.30)
+            tdd = (tddWeightedFromLast8H * 0.20) + (tdd2Days * 0.50) + (tddDaily * 0.30)
 
             // On récupère la glycémie et le delta actuel
             val currentBG = glucoseStatusProvider.glucoseStatusData?.glucose
@@ -611,9 +580,16 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
             val recentDeltas = getRecentDeltas()
             val predictedDelta = predictedDelta(recentDeltas)
 
-            // Calcul adaptatif de l'ISF via le filtre de Kalman
-            var variableSensitivity = kalmanISFCalculator.calculateISF(currentBG, currentDelta, predictedDelta)
-            aapsLogger.debug(LTag.APS, "Adaptive ISF computed: $variableSensitivity for BG: $currentBG, currentDelta: $currentDelta, predictedDelta: $predictedDelta")
+            // Use the same profile/TDD/PKPD anchored calculation that is exposed by
+            // variable ISF. The old direct Kalman call bypassed all fusion safeguards.
+            variableSensitivity = computeFreshVariableIsf(
+                glucose = currentBG,
+                currentDelta = currentDelta,
+                predictedDelta = predictedDelta,
+                profileIsf = activeProfileIsf,
+                nowMs = now
+            )
+            aapsLogger.debug(LTag.APS, "Unified adaptive ISF computed: $variableSensitivity for BG: $currentBG, currentDelta: $currentDelta, predictedDelta: $predictedDelta")
 
             // Imposition des bornes pour que l'ISF soit toujours compris entre 5 et 300
             variableSensitivity = variableSensitivity.coerceIn(5.0, 300.0)
@@ -626,7 +602,7 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
                 ratioFromCarbs = 1.0 // Peut être ajusté si nécessaire
             )
             } else {
-                variableSensitivity = profile.getIsfMgdl("OpenAPSAIMIPlugin")
+                variableSensitivity = activeProfileIsf
                 tdd = tdd24Hrs
                 autosensResult = AutosensResult(
                     ratio = 1.0,
@@ -734,6 +710,10 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
 
             lastPkpdScale = pkpdRuntimeNow?.pkpdScale ?: 1.0
             aapsLogger.debug(LTag.APS, "PK/PD: pkpdScale=$lastPkpdScale (bg=$bgNow, delta=$deltaNow, iob=$iobNow, tdd24=$tdd24ForPk, isfRaw=$profileIsfRaw)")
+            aapsLogger.info(
+                LTag.APS,
+                "Decision ISF inputs: profile=$activeProfileIsf, dynamic=$variableSensitivity, TDD=$tdd"
+            )
             var tdd4D = tddCalculator.averageTDD(tddCalculator.calculate(4, allowMissingDays = false))
             val oapsProfile = OapsProfileAimi(
                 dia = profile.dia,
@@ -745,7 +725,7 @@ open class OpenAPSAIMIPlugin  @Inject constructor(
                 max_bg = maxBg,
                 target_bg = targetBg,
                 carb_ratio = profile.getIc(),
-                sens = profile.getIsfMgdl("OpenAPSAIMIPlugin"),
+                sens = activeProfileIsf,
                 autosens_adjust_targets = false, // not used
                 max_daily_safety_multiplier = preferences.get(DoubleKey.ApsMaxDailyMultiplier),
                 current_basal_safety_multiplier = preferences.get(DoubleKey.ApsMaxCurrentBasalMultiplier),
